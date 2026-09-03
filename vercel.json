@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://legalcheck-ai.onrender.com/api/:path*"
+    }
+  ]
+}
