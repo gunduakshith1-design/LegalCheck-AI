@@ -1,0 +1,87 @@
+{
+  "rule_id": "MVP-A10",
+  "title": "Consumer Care Email Address (optional)",
+  "field": "consumer_care_email",
+  "description": "Detect whether an email address for consumer complaints is declared on the package. Rule 6(2) states the email address is required 'if available' — it is not mandatory. This rule is informational only and does NOT affect the screening score. It provides additional evidence for the consumer care declaration.",
+  "rule_reference": "Rule 6(2), Legal Metrology (Packaged Commodities) Rules, 2011",
+  "source_document": "The Legal Metrology (Packaged Commodities) Rules, 2011",
+  "source_notification": "G.S.R. 385(E), dated 14th May 2015 (substituted Rule 6(2))",
+  "source_page": "Page 7",
+  "source_version": "Original Rules (2011) + 2015 Amendment",
+  "source_verification_status": "verified_original_text",
+  "amendment_status": "Rule 6(2) was substituted by G.S.R. 385(E), 14 May 2015 to add email address requirement ('if available').",
+  "applicable_scope": "All pre-packaged commodities intended for retail sale.",
+  "mandatory": false,
+  "conditional": false,
+  "conditions": [],
+  "detection_method": {
+    "strategy": "email_regex_with_context",
+    "description": "OCR extracts all text. The system searches for email address patterns, ideally near consumer-care-related keywords.",
+    "primary_patterns": [
+      "[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}"
+    ],
+    "keyword_context": [
+      "\\b(consumer\\s*care|contact\\s*us|helpline|customer\\s*care|complaints?|feedback|email|e\\s*mail)\\b"
+    ],
+    "exclude_patterns": [
+      "\\b(@example\\.com|@test\\.com|@placeholder)\\b"
+    ],
+    "ocr_confidence_threshold": 0.5
+  },
+  "validation_logic": {
+    "pass_criteria": "An email address pattern is found on the label, ideally near consumer-care keywords.",
+    "evaluate": [
+      {
+        "step": 1,
+        "action": "Extract all OCR text lines",
+        "output": "text_lines"
+      },
+      {
+        "step": 2,
+        "action": "Search for email patterns (primary_patterns), filtering out test/placeholder domains",
+        "output": "email_matches"
+      },
+      {
+        "step": 3,
+        "action": "Check if any email is near consumer-care keywords",
+        "output": "contextual_emails"
+      },
+      {
+        "step": 4,
+        "action": "If email_matches non-empty → DETECTED. If no email found → NOT_DETECTED (informational, no score impact)."
+      }
+    ]
+  },
+  "observable_evidence": {
+    "description": "What the software can observe: text containing an email address pattern, ideally near consumer-care-related keywords.",
+    "examples": [
+      "Text 'Email: customercare@company.com' detected",
+      "Text 'Consumer Care: support@brand.in' detected",
+      "Text 'Contact us: feedback@manufacturer.co.in' detected"
+    ]
+  },
+  "status_values": {
+    "DETECTED": "An email address was found on the label, optionally near consumer-care keywords.",
+    "NOT_DETECTED": "No email address was found. This is NOT a compliance failure — email is 'if available'.",
+    "UNCERTAIN": "An email-like pattern was found but context is ambiguous.",
+    "NOT_APPLICABLE": "Product is exempt under Rule 3 or Rule 26."
+  },
+  "cannot_conclude": [
+    "Whether the email address is active or belongs to the manufacturer/packer",
+    "Whether the email is the correct contact for consumer complaints",
+    "Whether the absence of email is a violation (it is NOT — email is 'if available')"
+  ],
+  "notes": [
+    "Rule 6(2): 'Every package shall bear the name, address, telephone number, e mail address, if available, of the person who can be or the office which can be, contacted, in case of consumer complaints.'",
+    "The email address is explicitly optional ('if available'). This rule is informational only.",
+    "This rule does NOT affect the screening score. Absence of email is not a compliance issue.",
+    "The phone number check (MVP-A5) covers the mandatory part of Rule 6(2)."
+  ],
+  "limitations": [
+    "OCR may misread email addresses (e.g., '@' as 'at', '.' as ',').",
+    "Some packages may not have an email address visible on the scanned portion of the label.",
+    "The system cannot verify that the email address is valid or monitored."
+  ],
+  "rule_spec_version": "1.1.0",
+  "last_verified": "2026-09-02"
+}

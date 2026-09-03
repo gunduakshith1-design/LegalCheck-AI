@@ -1,0 +1,99 @@
+{
+  "rule_id": "MVP-A1",
+  "title": "Manufacturer/Packer/Importer Name Present",
+  "field": "manufacturer_name",
+  "description": "Detect whether the name of the manufacturer, packer, or importer is declared on the package label. This check identifies the entity responsible for the product. The presence of a name is an observation; it does not verify the entity's legal registration or identity.",
+  "rule_reference": "Rule 6(1)(a), Rule 10(1)",
+  "source_document": "The Legal Metrology (Packaged Commodities) Rules, 2011",
+  "source_notification": "GSR 202(E), dated 7th March 2011",
+  "source_page": "Pages 5, 10-11",
+  "source_version": "Original Rules (2011)",
+  "source_verification_status": "verified_original_text",
+  "amendment_status": "Amendments 2012–2026 not text-verified. This rule is based solely on the original 2011 text.",
+  "applicable_scope": "All pre-packaged commodities intended for retail sale, excluding: packages >25kg/25L (Rule 3(a)), industrial/institutional consumers (Rule 3(b)).",
+  "mandatory": true,
+  "conditional": false,
+  "conditions": [],
+  "detection_method": {
+    "strategy": "pattern_and_context",
+    "description": "OCR extracts all text from the principal display panel. The system searches for text blocks near qualifier phrases or in label regions typically containing manufacturer information.",
+    "primary_patterns": [
+      "Manufactured by",
+      "Manufactured & Packed by",
+      "Packed by",
+      "Packed & Marketed by",
+      "Marketed by",
+      "Produced by",
+      "Imported by",
+      "Imported & Distributed by",
+      "Mfd by",
+      "Mfg by"
+    ],
+    "secondary_patterns": [
+      "Company name patterns near address blocks",
+      "Text blocks following qualifier phrases",
+      "Text in label regions with manufacturer-type metadata"
+    ],
+    "ocr_confidence_threshold": 0.6
+  },
+  "validation_logic": {
+    "pass_criteria": "At least one text block is identified as a company/entity name in proximity to a qualifier phrase or in a manufacturer-label region.",
+    "evaluate": [
+      {
+        "step": 1,
+        "action": "Extract all OCR text lines with bounding boxes",
+        "output": "text_lines"
+      },
+      {
+        "step": 2,
+        "action": "Search for qualifier phrases (primary_patterns) in text lines",
+        "output": "qualifier_matches"
+      },
+      {
+        "step": 3,
+        "action": "For each qualifier match, examine adjacent text lines (within spatial proximity on label) for entity name",
+        "output": "entity_candidates"
+      },
+      {
+        "step": 4,
+        "action": "If entity_candidates is non-empty → DETECTED. If qualifier found but no entity name → UNCERTAIN. If no qualifier found → NOT_DETECTED."
+      }
+    ]
+  },
+  "observable_evidence": {
+    "description": "What the software can observe: a text string that appears to be a company or entity name, located near qualifier words ('Manufactured by', 'Packed by', etc.) or in a region of the label associated with manufacturer information.",
+    "examples": [
+      "Text line 'Manufactured by Hindustan Unilever Ltd.' detected",
+      "Text line 'Packed by: ABC Foods Pvt. Ltd.' detected",
+      "Qualifier 'Marketed by' found but no entity name in adjacent text"
+    ]
+  },
+  "status_values": {
+    "DETECTED": "A text string identified as an entity name was found near a qualifier phrase or in a manufacturer-label region.",
+    "NOT_DETECTED": "No qualifier phrase found and no entity name identifiable in manufacturer-label regions.",
+    "UNCERTAIN": "A qualifier phrase was found but the adjacent entity name text is unclear, partially occluded, or below OCR confidence threshold.",
+    "NOT_APPLICABLE": "Product is exempt under Rule 3 (packages >25kg/25L, industrial/institutional) or Rule 26 (exemptions). Requires manual classification."
+  },
+  "cannot_conclude": [
+    "Whether the named entity is the legal manufacturer, packer, or importer",
+    "Whether the entity is registered under Rule 27",
+    "Whether the name is the 'actual corporate name' per Rule 10(2)",
+    "Whether multiple names on the label create ambiguity about responsibility (see Rule 6(1)(a) Explanation II)",
+    "Whether a food product follows PFA/FSSAI provisions instead (see Rule 6(1)(a) Explanation III)",
+    "Whether a shorter address registered under Rule 28 is in use"
+  ],
+  "notes": [
+    "Rule 6(1)(a) Explanation I: If no qualifying words ('manufactured by' or 'packed by') appear, the name is presumed to be the manufacturer's. Absence of qualifiers is not itself a violation.",
+    "Rule 6(1)(a) Explanation II: If a brand owner appears as 'marketer', they are held responsible. Prosecution targets the first-listed manufacturer.",
+    "Rule 10(1): For packages ≤5 cubic cm, a mark enabling identification is sufficient.",
+    "This check is for presence only. The system does not verify the legal status of the named entity."
+  ],
+  "limitations": [
+    "Based on original 2011 text only. Amendments may have modified exemption lists or added new entity types.",
+    "OCR accuracy on curved, reflective, or partially visible labels may cause false NOT_DETECTED results.",
+    "The system cannot distinguish between manufacturer, packer, and importer names when multiple entities are listed.",
+    "Product category exemptions (food, cosmetics, drugs) are not automatically applied — the system flags all products equally."
+  ],
+  "rule_spec_version": "1.0.0",
+  "last_verified": "2026-08-30"
+}

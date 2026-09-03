@@ -1,0 +1,94 @@
+{
+  "rule_id": "MVP-A9",
+  "title": "Best Before / Use By Date Declared (where applicable)",
+  "field": "best_before_date",
+  "description": "Detect whether a 'best before' or 'use by' date is declared on the package, as required by Rule 6(1)(da) for commodities that may become unfit for human consumption after a period of time. This rule is applicability-aware: it only applies when there is evidence the product is a perishable or time-sensitive commodity. For non-perishable products, this rule returns NOT_APPLICABLE and does not affect the screening score.",
+  "rule_reference": "Rule 6(1)(da), Legal Metrology (Packaged Commodities) Rules, 2011 (inserted by G.S.R. 629(E), 23 June 2017)",
+  "source_document": "The Legal Metrology (Packaged Commodities) Rules, 2011",
+  "source_notification": "G.S.R. 629(E), dated 23rd June 2017",
+  "source_page": "Page 6 (after Rule 6(1)(d))",
+  "source_version": "Original Rules (2011) + 2017 Amendment",
+  "source_verification_status": "verified_original_text",
+  "amendment_status": "Inserted by G.S.R. 629(E), 23 June 2017. Not further amended.",
+  "applicable_scope": "Pre-packaged commodities which may become unfit for human consumption after a period of time. Not applicable to non-perishable goods.",
+  "mandatory": true,
+  "conditional": true,
+  "conditions": [
+    "Applies only when the product is identified as a perishable or time-sensitive commodity"
+  ],
+  "detection_method": {
+    "strategy": "keyword_and_context_with_applicability",
+    "description": "The system first determines whether the product is likely perishable or time-sensitive using food/beverage/perishable indicators. If applicability is established, it searches for best-before or use-by date declarations. If applicability cannot be established, the rule returns NOT_APPLICABLE.",
+    "applicability_patterns": [
+      "\\b(tea|coffee|biscuit|biscuits|rice|wheat|flour|sugar|salt|oil|ghee|milk|water|juice|soda|snack|snacks|chocolate|candy|cereal|noodle|noodles|pasta|bread|cake|cookie|cookies|chips|namkeen|atta|maida|dal|lentil|pulses|spice|spices|honey|jam|sauce|ketchup|pickle|chutney|vinegar|butter|cheese|yogurt|curd|ice cream|frozen|canned|bottled|packaged)\\b",
+      "\\b(food|beverage|drink|edible|consumable|organic|fresh|natural)\\b",
+      "\\b(pharmaceutical|medicine|tablet|capsule|syrup|supplement|vitamin)\\b",
+      "\\b(baby|infant|formula)\\b",
+      "\\b(cosmetic|cream|lotion|shampoo|soap|toothpaste)\\b"
+    ],
+    "date_patterns": [
+      "\\b(best\\s*before|BB|BBE|best\\s*before\\s*end)\\s*[:\\-]?\\s*(\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}|\\d{1,2}\\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\.?\\s*\\d{4}|(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\.?\\s*\\d{4}|\\d{4})",
+      "\\b(use\\s*by|UB)\\s*[:\\-]?\\s*(\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}|\\d{1,2}\\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\.?\\s*\\d{4}|(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\.?\\s*\\d{4}|\\d{4})",
+      "\\b(expiry|expires?|expiration)\\s*[:\\-]?\\s*(\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}|\\d{1,2}\\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\.?\\s*\\d{4}|(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\.?\\s*\\d{4}|\\d{4})",
+      "\\b(valid\\s*until|shelf\\s*life)\\s*[:\\-]?\\s*(\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}|\\d{1,2}\\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\.?\\s*\\d{4}|(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\.?\\s*\\d{4}|\\d{4})",
+      "\\b(\\d+)\\s*(months?|days?|years?)\\s*(shelf\\s*life|from\\s+manufacture|from\\s+packing)\\b"
+    ],
+    "ocr_confidence_threshold": 0.5
+  },
+  "validation_logic": {
+    "pass_criteria": "When applicable (product is perishable/time-sensitive), a best-before or use-by date declaration is found on the label.",
+    "evaluate": [
+      {
+        "step": 1,
+        "action": "Extract all OCR text lines",
+        "output": "text_lines"
+      },
+      {
+        "step": 2,
+        "action": "Check for applicability: search for food/beverage/perishable indicators (applicability_patterns). If found, product is likely perishable → rule is applicable. If not found, rule is NOT_APPLICABLE.",
+        "output": "applicability_result"
+      },
+      {
+        "step": 3,
+        "action": "If applicable: search for best-before/use-by date patterns. If found → DETECTED. If keyword found but no date → UNCERTAIN. If nothing found → NOT_DETECTED.",
+        "output": "date_result"
+      }
+    ]
+  },
+  "observable_evidence": {
+    "description": "What the software can observe: text containing 'Best Before', 'Use By', 'Expiry', or similar date-related declarations, along with a date value. For applicability, food/beverage/perishable keywords indicate the product may require a best-before declaration.",
+    "examples": [
+      "Text 'Best Before: 12 Months from Date of Manufacture' detected",
+      "Text 'Use By: Dec 2025' detected",
+      "Text 'BBE: 03/2026' detected",
+      "Text 'Expiry Date: 15/01/2026' detected",
+      "Text 'Shelf Life: 18 months from packing' detected"
+    ]
+  },
+  "status_values": {
+    "DETECTED": "The product is identified as perishable/time-sensitive, and a best-before/use-by declaration was found.",
+    "NOT_DETECTED": "The product is identified as perishable/time-sensitive, but no best-before/use-by declaration was found.",
+    "UNCERTAIN": "Applicability is uncertain, or date keyword found but date value unclear.",
+    "NOT_APPLICABLE": "No evidence of perishable/time-sensitive product category. The product appears to be non-perishable."
+  },
+  "cannot_conclude": [
+    "Whether the best-before date satisfies the specific requirements for this product category",
+    "Whether the date format is legally sufficient",
+    "Whether the product falls under other laws (FSSAI, Drugs and Cosmetics) that may have their own date requirements",
+    "Whether the date is accurate"
+  ],
+  "notes": [
+    "Rule 6(1)(da): 'If a package contains a commodity which may become unfit for human consumption after a period of time, the best before or use by the date, month and year shall also be mentioned on the label.'",
+    "This rule is applicability-aware: missing best-before on a non-perishable product (e.g., steel utensils, electronics) is NOT a violation.",
+    "The system uses food/beverage/perishable keywords as a proxy for applicability. This is a heuristic.",
+    "Food products may follow FSSAI date labeling rules instead of LMPC Rule 6(1)(da)."
+  ],
+  "limitations": [
+    "Applicability detection relies on food/beverage keywords in OCR text. Some perishable products (e.g., certain cosmetics, medicines) may not have these keywords visible.",
+    "Date extraction from OCR may be imprecise due to formatting variations.",
+    "The system cannot verify that the best-before period is reasonable for the product type.",
+    "Products under other regulatory frameworks (FSSAI, CDSCO) may have different date labeling requirements."
+  ],
+  "rule_spec_version": "1.1.0",
+  "last_verified": "2026-09-02"
+}

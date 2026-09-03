@@ -1,0 +1,159 @@
+{
+  "manifest_version": "1.1.0",
+  "rule_set_version": "v1.1",
+  "title": "Legal Metrology Rule Specification — v1.1",
+  "description": "Machine-readable rule definitions for the SIH screening prototype. Based on the Legal Metrology (Packaged Commodities) Rules, 2011 (GSR 202(E)), including amendments through G.S.R. 629(E) 2017 and G.S.R. 128(E) 2026.",
+  "source_document": "The Legal Metrology (Packaged Commodities) Rules, 2011",
+  "source_notification": "G.S.R. 202(E), dated 7th March 2011",
+  "source_authority": "Central Government, Department of Consumer Affairs, DPIIT",
+  "source_enabling_act": "Legal Metrology Act, 2009 (1 of 2010), Section 52(1)(j)/(q)",
+  "source_version": "Original Rules (2011) + amendments through 2026",
+  "source_verification_status": "verified_original_text",
+  "amendment_note": "v1.1 adds Rule 6(1)(b) common name, Rule 6(1)(aa) country of origin, Rule 6(1)(da) best before date, and Rule 6(2) consumer care email (informational). Rules based on original 2011 text + 2017 amendment (G.S.R. 629(E)) for country of origin and best before. 2026 amendments (G.S.R. 128(E), G.S.R. 312(E), G.S.R. 418(E)) are noted but do not add new image-screening rules.",
+  "created_date": "2026-08-30",
+  "last_verified": "2026-09-02",
+  "version_history": [
+    {
+      "version": "v1.0",
+      "date": "2026-08-30",
+      "rules": 6,
+      "description": "Initial MVP: manufacturer name, net quantity, MRP, date of manufacture, consumer care phone, manufacturer address"
+    },
+    {
+      "version": "v1.1",
+      "date": "2026-09-02",
+      "rules": 10,
+      "description": "Added: common/generic name, country of origin (conditional), best before/use by (conditional), consumer care email (informational)"
+    }
+  ],
+  "total_rules": 10,
+  "mandatory_rules": 9,
+  "informational_rules": 1,
+  "conditional_rules": 2,
+  "rules": [
+    {
+      "rule_id": "MVP-A1",
+      "title": "Manufacturer/Packer/Importer Name Present",
+      "file": "mvp-a1-manufacturer-name.json",
+      "field": "manufacturer_name",
+      "rule_reference": "Rule 6(1)(a), Rule 10(1)",
+      "mandatory": true,
+      "conditional": false,
+      "informational": false,
+      "detection_summary": "Pattern match for qualifier phrases ('Manufactured by', 'Packed by', etc.) with adjacent entity name"
+    },
+    {
+      "rule_id": "MVP-A2",
+      "title": "Net Quantity Declared with SI Unit",
+      "file": "mvp-a2-net-quantity.json",
+      "field": "net_quantity",
+      "rule_reference": "Rule 6(1)(c), Rule 13(5)(i)",
+      "mandatory": true,
+      "conditional": false,
+      "informational": false,
+      "detection_summary": "Regex match for numeric values with SI unit symbols (g, kg, ml, L, cm, etc.)"
+    },
+    {
+      "rule_id": "MVP-A3",
+      "title": "MRP / Retail Sale Price Present with Value",
+      "file": "mvp-a3-mrp.json",
+      "field": "mrp",
+      "rule_reference": "Rule 6(1)(e), Rule 2(m)",
+      "mandatory": true,
+      "conditional": false,
+      "informational": false,
+      "detection_summary": "Keyword match for 'MRP'/'Max. Retail Price' near numeric value with currency symbol"
+    },
+    {
+      "rule_id": "MVP-A4",
+      "title": "Month and Year of Manufacture/Packing Present",
+      "file": "mvp-a4-date-of-manufacture.json",
+      "field": "date_of_manufacture",
+      "rule_reference": "Rule 6(1)(d)",
+      "mandatory": true,
+      "conditional": false,
+      "informational": false,
+      "detection_summary": "Date pattern recognition for month+year combinations, optionally near date-related keywords"
+    },
+    {
+      "rule_id": "MVP-A5",
+      "title": "Consumer Care Telephone Number Present",
+      "file": "mvp-a5-consumer-care-phone.json",
+      "field": "consumer_care_phone",
+      "rule_reference": "Rule 6(2)",
+      "mandatory": true,
+      "conditional": false,
+      "informational": false,
+      "detection_summary": "Phone number regex with false-positive filtering (PIN codes, batch numbers)"
+    },
+    {
+      "rule_id": "MVP-A6",
+      "title": "Manufacturer/Packer/Importer Address Present",
+      "file": "mvp-a6-manufacturer-address.json",
+      "field": "manufacturer_address",
+      "rule_reference": "Rule 6(1)(a), Rule 10(1)",
+      "mandatory": true,
+      "conditional": false,
+      "informational": false,
+      "detection_summary": "Address pattern matching (PIN codes, city/state names, street indicators) near manufacturer name"
+    },
+    {
+      "rule_id": "MVP-A7",
+      "title": "Common/Generic Name of Commodity Declared",
+      "file": "mvp-a7-common-name.json",
+      "field": "common_name",
+      "rule_reference": "Rule 6(1)(b)",
+      "mandatory": true,
+      "conditional": false,
+      "informational": false,
+      "detection_summary": "Keyword and context match for common product descriptors (biscuits, tea, water, soap, etc.)"
+    },
+    {
+      "rule_id": "MVP-A8",
+      "title": "Country of Origin Declared (for Imported Products)",
+      "file": "mvp-a8-country-origin.json",
+      "field": "country_of_origin",
+      "rule_reference": "Rule 6(1)(aa)",
+      "mandatory": true,
+      "conditional": true,
+      "informational": false,
+      "detection_summary": "Applicability-aware: detects import keywords, then searches for country-of-origin declarations"
+    },
+    {
+      "rule_id": "MVP-A9",
+      "title": "Best Before / Use By Date Declared (where applicable)",
+      "file": "mvp-a9-best-before.json",
+      "field": "best_before_date",
+      "rule_reference": "Rule 6(1)(da)",
+      "mandatory": true,
+      "conditional": true,
+      "informational": false,
+      "detection_summary": "Applicability-aware: detects perishable/food keywords, then searches for best-before/use-by dates"
+    },
+    {
+      "rule_id": "MVP-A10",
+      "title": "Consumer Care Email Address (optional)",
+      "file": "mvp-a10-consumer-care-email.json",
+      "field": "consumer_care_email",
+      "rule_reference": "Rule 6(2)",
+      "mandatory": false,
+      "conditional": false,
+      "informational": true,
+      "detection_summary": "Email regex with consumer-care keyword context. Informational only — does not affect score."
+    }
+  ],
+  "status_values": {
+    "DETECTED": "The required field was found in the OCR text",
+    "NOT_DETECTED": "The field was searched for but not found",
+    "UNCERTAIN": "Partial match or ambiguous result",
+    "NOT_APPLICABLE": "Rule does not apply (requires manual product classification, or conditional rule where applicability not established)"
+  },
+  "evaluation_notes": {
+    "scope": "These rules describe what the software can OBSERVE from a package image. Detection is observation, not compliance.",
+    "no_legal_conclusion": "The system does NOT declare products as 'LEGALLY COMPLIANT'. Detection of a field does not mean the field satisfies the legal requirement.",
+    "product_category": "Product-category exemptions (food, cosmetics, drugs, alcohol, bidis, LPG) are NOT automatically applied. The system checks all products equally. Manual classification is required before production use.",
+    "conditional_rules": "Rules MVP-A8 (country of origin) and MVP-A9 (best before) are conditional: they only apply when import status or perishable status is established from OCR evidence. When applicability cannot be established, these rules return NOT_APPLICABLE and do not affect the score.",
+    "informational_rules": "Rule MVP-A10 (consumer care email) is informational only. Its status does not affect the screening score.",
+    "amendment_limitation": "Rules are based on the original 2011 text + 2017 amendment. The current consolidated law may differ due to additional amendments."
+  }
+}

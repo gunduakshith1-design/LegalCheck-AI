@@ -1,0 +1,100 @@
+{
+  "rule_id": "MVP-A2",
+  "title": "Net Quantity Declared with SI Unit",
+  "field": "net_quantity",
+  "description": "Detect whether the net quantity of the commodity is declared on the package using a recognized SI unit of weight, measure, or number. This check identifies the presence and unit type of the quantity declaration. It does not verify whether the declared quantity matches the actual contents.",
+  "rule_reference": "Rule 6(1)(c), Rule 13(5)(i)",
+  "source_document": "The Legal Metrology (Packaged Commodities) Rules, 2011",
+  "source_notification": "GSR 202(E), dated 7th March 2011",
+  "source_page": "Pages 5, 13-14",
+  "source_version": "Original Rules (2011)",
+  "source_verification_status": "verified_original_text",
+  "amendment_status": "Amendments 2012–2026 not text-verified. This rule is based solely on the original 2011 text.",
+  "applicable_scope": "All pre-packaged commodities intended for retail sale, excluding: packages >25kg/25L (Rule 3(a)), industrial/institutional consumers (Rule 3(b)).",
+  "mandatory": true,
+  "conditional": false,
+  "conditions": [],
+  "detection_method": {
+    "strategy": "regex_and_unit_matching",
+    "description": "OCR extracts all text. The system searches for numeric values followed by recognized SI unit symbols or common abbreviations.",
+    "primary_patterns": [
+      "\\d+\\.?\\d*\\s*(kg|g|gm|gms|gram|grams|kilogram|kilograms)\\b",
+      "\\d+\\.?\\d*\\s*(ml|ltr|l|litre|liter|litres|liters|millilitre|milliliter)\\b",
+      "\\d+\\.?\\d*\\s*(cm|mm|m|metre|meter|centimetre|centimeter|millimetre|millimeter)\\b",
+      "\\d+\\.?\\d*\\s*(sq\\.?\\s*m|sq\\.?\\s*cm|sq\\.?\\s*mm|cm2|m2)\\b",
+      "\\b(N|U|nos?|pcs?|pieces?|units?)\\b.*\\d+|\\d+.*\\b(N|U|nos?|pcs?|pieces?|units?)\\b"
+    ],
+    "non_si_patterns": [
+      "\\b(oz|ounce|ounces|lb|lbs|pound|pounds|fl\\.?\\s*oz|gallon|gallons|quart|quarts|pint|pints)\\b"
+    ],
+    "qualifier_warning_patterns": [
+      "\\b(minimum|min\\.|about|approximately|approx\\.|nearly|net wt\\.|net content)\\b"
+    ],
+    "ocr_confidence_threshold": 0.6
+  },
+  "validation_logic": {
+    "pass_criteria": "At least one numeric value with a recognized SI unit symbol is detected on the label.",
+    "evaluate": [
+      {
+        "step": 1,
+        "action": "Extract all OCR text lines",
+        "output": "text_lines"
+      },
+      {
+        "step": 2,
+        "action": "Search for SI unit patterns in text lines",
+        "output": "si_matches"
+      },
+      {
+        "step": 3,
+        "action": "Search for non-SI unit patterns (imperial units)",
+        "output": "non_si_matches"
+      },
+      {
+        "step": 4,
+        "action": "Search for misleading qualifier patterns ('minimum', 'about', 'approximately')",
+        "output": "qualifier_warnings"
+      },
+      {
+        "step": 5,
+        "action": "If si_matches non-empty → DETECTED. If non_si_matches non-empty and si_matches empty → POTENTIAL_NON_COMPLIANCE (non-SI units). If qualifier_warnings non-empty → note as UNCERTAIN (qualified quantity). If neither found → NOT_DETECTED."
+      }
+    ]
+  },
+  "observable_evidence": {
+    "description": "What the software can observe: a numeric value followed by a unit symbol (g, kg, ml, L, cm, etc.) or a number preceded/followed by a count unit (N, U, pcs).",
+    "examples": [
+      "Text line 'Net Wt. 500g' detected — SI unit 'g' found",
+      "Text line 'Net Quantity: 1 L' detected — SI unit 'L' found",
+      "Text line 'Net Weight 16 oz' detected — non-SI unit 'oz' found",
+      "Text line 'Minimum 500g' detected — qualifier 'Minimum' flagged"
+    ]
+  },
+  "status_values": {
+    "DETECTED": "A numeric quantity with a recognized SI unit symbol was found on the label.",
+    "NOT_DETECTED": "No quantity declaration with a recognizable unit was found.",
+    "UNCERTAIN": "A quantity was found but with a misleading qualifier ('minimum', 'about', 'approximately') or partial unit text.",
+    "NOT_APPLICABLE": "Product is exempt under Rule 3 or Rule 26. Requires manual classification."
+  },
+  "cannot_conclude": [
+    "Whether the declared quantity matches the actual contents (requires physical measurement)",
+    "Whether the correct SI unit for this commodity type was used (e.g., weight vs. volume — requires product classification per Fourth Schedule)",
+    "Whether the quantity qualifies under the 'when packed' provision (Third Schedule commodities)",
+    "Whether the package is a standard pack size (Rule 5 — withdrawn 01.07.2012)"
+  ],
+  "notes": [
+    "Rule 13(5)(i): 'No system of units other than the International System of Units shall be used.'",
+    "Rule 12(6): Quantity declaration shall not contain words like 'minimum', 'not less than', 'average', 'about', 'approximately'.",
+    "Rule 13(5)(ii): For items sold by number, the symbol should be N or U.",
+    "The Fourth Schedule lists commodity-specific unit exceptions, but all listed units are SI — the exception is about which SI unit to use.",
+    "This check is for presence and unit type only. The system does not verify quantity accuracy."
+  ],
+  "limitations": [
+    "Based on original 2011 text only. Amendments may have modified unit requirements.",
+    "OCR may misread unit symbols (e.g., 'g' as '9', 'ml' as 'm1').",
+    "Dual-unit labels (common on imported products) may show both SI and non-SI units — the system should flag non-SI as informational, not necessarily non-compliant.",
+    "Product category exemptions (food, cosmetics, drugs) are not automatically applied."
+  ],
+  "rule_spec_version": "1.0.0",
+  "last_verified": "2026-08-30"
+}

@@ -1,0 +1,99 @@
+{
+  "rule_id": "MVP-A8",
+  "title": "Country of Origin Declared (for Imported Products)",
+  "field": "country_of_origin",
+  "description": "Detect whether the country of origin, manufacture, or assembly is declared on the package, as required for imported products by Rule 6(1)(aa). This rule is applicability-aware: it only applies when there is evidence that the product is imported. For domestic products, this rule returns NOT_APPLICABLE and does not affect the screening score.",
+  "rule_reference": "Rule 6(1)(aa), Legal Metrology (Packaged Commodities) Rules, 2011 (inserted by G.S.R. 629(E), 23 June 2017)",
+  "source_document": "The Legal Metrology (Packaged Commodities) Rules, 2011",
+  "source_notification": "G.S.R. 629(E), dated 23rd June 2017",
+  "source_page": "Page 5 (after Rule 6(1)(a))",
+  "source_version": "Original Rules (2011) + 2017 Amendment",
+  "source_verification_status": "verified_original_text",
+  "amendment_status": "Inserted by G.S.R. 629(E), 23 June 2017. Not further amended.",
+  "applicable_scope": "Imported pre-packaged commodities only. Not applicable to domestically manufactured products.",
+  "mandatory": true,
+  "conditional": true,
+  "conditions": [
+    "Applies only when the product is identified as imported (see applicability logic)"
+  ],
+  "detection_method": {
+    "strategy": "keyword_and_context_with_applicability",
+    "description": "The system first determines whether the product is likely imported using importer-related keywords and label cues. If import status is established or strongly indicated, it then searches for country-of-origin declarations. If import status cannot be established, the rule returns NOT_APPLICABLE.",
+    "applicability_patterns": [
+      "\\b(imported?|import(?:er|ed|ing)|distributor|distributed\\s+by)\\b",
+      "\\b(country\\s+of\\s+origin|origin|made\\s+in|manufactured\\s+in|assembled\\s+in|product\\s+of)\\b",
+      "\\b(foreign|overseas|international)\\b"
+    ],
+    "origin_patterns": [
+      "\\b(country\\s+of\\s+origin|COO)\\s*[:\\-]?\\s*([A-Za-z\\s]+)",
+      "\\b(made\\s+in|manufactured\\s+in|assembled\\s+in|produced\\s+in|product\\s+of)\\s*[:\\-]?\\s*([A-Za-z\\s]+)",
+      "\\b(origin|originating\\s+from)\\s*[:\\-]?\\s*([A-Za-z\\s]+)",
+      "\\b(imported?\\s+from)\\s*[:\\-]?\\s*([A-Za-z\\s]+)"
+    ],
+    "country_list": [
+      "India", "China", "USA", "United States", "UK", "United Kingdom", "Germany", "France",
+      "Japan", "South Korea", "Korea", "Thailand", "Vietnam", "Indonesia", "Malaysia",
+      "Singapore", "Sri Lanka", "Bangladesh", "Nepal", "Pakistan", "Myanmar",
+      "UAE", "Dubai", "Saudi Arabia", "Turkey", "Italy", "Spain", "Netherlands",
+      "Australia", "New Zealand", "Canada", "Brazil", "Mexico", "Argentina",
+      "Switzerland", "Sweden", "Denmark", "Norway", "Finland", "Poland",
+      "Russia", "Taiwan", "Hong Kong", "Philippines", "Cambodia", "Laos"
+    ],
+    "ocr_confidence_threshold": 0.5
+  },
+  "validation_logic": {
+    "pass_criteria": "When applicable (product is imported), a country-of-origin declaration is found on the label.",
+    "evaluate": [
+      {
+        "step": 1,
+        "action": "Extract all OCR text lines",
+        "output": "text_lines"
+      },
+      {
+        "step": 2,
+        "action": "Check for applicability: search for import-related keywords (applicability_patterns). If found, product is likely imported → rule is applicable. If not found, rule is NOT_APPLICABLE.",
+        "output": "applicability_result"
+      },
+      {
+        "step": 3,
+        "action": "If applicable: search for country-of-origin declarations using origin_patterns. If a country name is found → DETECTED. If origin keyword found but no country → UNCERTAIN. If nothing found → NOT_DETECTED.",
+        "output": "origin_result"
+      }
+    ]
+  },
+  "observable_evidence": {
+    "description": "What the software can observe: text containing 'Country of Origin', 'Made in', 'Product of', or similar origin declarations, along with a country name. For applicability, import-related keywords such as 'Imported by', 'Distributed by', or 'Importer' indicate the product may be imported.",
+    "examples": [
+      "Text 'Country of Origin: China' detected — origin declaration found",
+      "Text 'Made in Japan' detected — origin declaration found",
+      "Text 'Imported by: ABC Trading Co.' detected — applicability established, but no origin text found",
+      "Text 'Manufactured by Tata Consumer Products Ltd., Mumbai' detected — no import indicators → NOT_APPLICABLE"
+    ]
+  },
+  "status_values": {
+    "DETECTED": "The product is identified as imported, and a country-of-origin declaration was found.",
+    "NOT_DETECTED": "The product is identified as imported, but no country-of-origin declaration was found.",
+    "UNCERTAIN": "Import status is uncertain, or origin keyword found but country name unclear.",
+    "NOT_APPLICABLE": "No evidence of import status was found. The product appears to be domestically manufactured."
+  },
+  "cannot_conclude": [
+    "Whether the declared country of origin is accurate",
+    "Whether the product truly qualifies as 'imported' based on the OCR evidence alone",
+    "Whether the country name corresponds to the country of origin vs. manufacture vs. assembly",
+    "Whether the label satisfies Rule 6(1)(aa) completely for customs/immigration purposes"
+  ],
+  "notes": [
+    "Rule 6(1)(aa): 'The name of the country of origin or manufacture or assembly in case of imported products shall be mentioned on the package.'",
+    "This rule is applicability-aware: missing origin on a domestic product is NOT a violation.",
+    "The system uses import-related keywords as a proxy for import status. This is a heuristic, not a legal determination.",
+    "For e-commerce: Rule 6(10A) (inserted by G.S.R. 128(E), 13 Feb 2026; substituted by G.S.R. 312(E), 27 Apr 2026, effective 1 Jul 2027) will require searchable country-of-origin filters on e-commerce platforms for imported products."
+  ],
+  "limitations": [
+    "Applicability detection relies on import-related keywords in OCR text. Some imported products may not have these keywords visible in the scanned image.",
+    "Country name extraction from OCR may be imprecise due to OCR errors or unusual formatting.",
+    "The system cannot distinguish between 'country of origin', 'country of manufacture', and 'country of assembly' — all are treated as satisfying Rule 6(1)(aa).",
+    "Products with mixed origin (e.g., assembled in India from imported components) may produce ambiguous results."
+  ],
+  "rule_spec_version": "1.1.0",
+  "last_verified": "2026-09-02"
+}

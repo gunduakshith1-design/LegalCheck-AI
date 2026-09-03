@@ -1,0 +1,105 @@
+{
+  "rule_id": "MVP-A3",
+  "title": "MRP / Retail Sale Price Present with Value",
+  "field": "mrp",
+  "description": "Detect whether a Maximum Retail Price (MRP) or retail sale price declaration with a numeric value is present on the package. This check identifies the presence of the MRP declaration. It does not verify that the price is accurate, legally valid, or that it includes all taxes.",
+  "rule_reference": "Rule 6(1)(e), Rule 2(m)",
+  "source_document": "The Legal Metrology (Packaged Commodities) Rules, 2011",
+  "source_notification": "GSR 202(E), dated 7th March 2011",
+  "source_page": "Pages 3, 7",
+  "source_version": "Original Rules (2011)",
+  "source_verification_status": "verified_original_text",
+  "amendment_status": "Amendments 2012–2026 not text-verified. This rule is based solely on the original 2011 text.",
+  "applicable_scope": "All pre-packaged commodities intended for retail sale, excluding: packages >25kg/25L (Rule 3(a)), industrial/institutional consumers (Rule 3(b)). Exemptions: bidis (Rule 6(1)(C)(i)), LPG cylinders under Administrative Price Mechanism (Rule 6(1)(C)(ii)), alcoholic beverages where state excise laws apply (Rule 6(1)(e) proviso).",
+  "mandatory": true,
+  "conditional": false,
+  "conditions": [],
+  "detection_method": {
+    "strategy": "keyword_and_numeric_matching",
+    "description": "OCR extracts all text. The system searches for MRP-related keywords followed by or near a numeric value (with currency symbol).",
+    "primary_patterns": [
+      "\\bMRP\\b",
+      "\\bMax\\.?\\s*Retail\\s*Price\\b",
+      "\\bMaximum\\s*Retail\\s*Price\\b",
+      "\\bRetail\\s*Sale\\s*Price\\b",
+      "\\bMRP\\s*(Rs\\.?|INR|₹)\\s*\\d+",
+      "(Rs\\.?|INR|₹)\\s*\\d+\\.?\\d*"
+    ],
+    "value_patterns": [
+      "(Rs\\.?|INR|₹)\\s*\\d+(\\.\\d{1,2})?",
+      "\\d+(\\.\\d{1,2})?\\s*(Rs\\.?|INR|₹)"
+    ],
+    "inclusive_tax_patterns": [
+      "\\b(incl\\.?|inclusive)\\b.*\\b(all\\s*taxes?|tax|GST|VAT)\\b",
+      "\\b(all\\s*taxes?|tax|GST|VAT)\\b.*\\b(incl\\.?|inclusive)\\b",
+      "\\bMRP\\b.*\\b(incl\\.?)\\b"
+    ],
+    "ocr_confidence_threshold": 0.6
+  },
+  "validation_logic": {
+    "pass_criteria": "An MRP keyword is found near a numeric value with a currency symbol.",
+    "evaluate": [
+      {
+        "step": 1,
+        "action": "Extract all OCR text lines",
+        "output": "text_lines"
+      },
+      {
+        "step": 2,
+        "action": "Search for MRP keywords (primary_patterns)",
+        "output": "mrp_keyword_matches"
+      },
+      {
+        "step": 3,
+        "action": "For each keyword match, search adjacent text for numeric value with currency symbol",
+        "output": "mrp_value_matches"
+      },
+      {
+        "step": 4,
+        "action": "Search for 'inclusive of all taxes' variant near MRP declaration",
+        "output": "inclusive_tax_matches"
+      },
+      {
+        "step": 5,
+        "action": "If mrp_keyword_matches AND mrp_value_matches → DETECTED. If mrp_keyword_matches but no value → UNCERTAIN. If no keyword found → NOT_DETECTED."
+      }
+    ]
+  },
+  "observable_evidence": {
+    "description": "What the software can observe: text containing 'MRP', 'Max. Retail Price', or 'Maximum Retail Price' near a numeric value with a currency symbol (Rs., ₹, INR). Optionally, whether 'inclusive of all taxes' or a variant is present.",
+    "examples": [
+      "Text 'MRP Rs. 299.00' detected with value ₹299.00",
+      "Text 'Maximum Retail Price Rs. 450 incl. of all taxes' detected",
+      "Text 'MRP' found but no numeric value in adjacent text",
+      "Text '₹199' found but no MRP keyword nearby"
+    ]
+  },
+  "status_values": {
+    "DETECTED": "An MRP keyword with a numeric value was found on the label.",
+    "NOT_DETECTED": "No MRP keyword or retail sale price declaration was found.",
+    "UNCERTAIN": "An MRP keyword was found but the associated numeric value is unclear or missing.",
+    "NOT_APPLICABLE": "Product is exempt (bidis, LPG under APM, alcohol under state excise laws). Requires manual classification."
+  },
+  "cannot_conclude": [
+    "Whether the MRP is accurate or legally set",
+    "Whether the price is inclusive of all taxes (detects presence of phrase, not legal sufficiency)",
+    "Whether a sticker-reduced MRP is valid (Rule 6(3) permits MRP reduction stickers)",
+    "Whether the MRP format exactly matches Rule 2(m) prescribed format",
+    "Whether the product is alcohol and thus exempt from MRP under state excise laws"
+  ],
+  "notes": [
+    "Rule 2(m): 'retail sale price means the maximum price at which the commodity in packaged form may be sold to the consumer and the price shall be printed on the package in the manner given below: Maximum or Max. retail price Rs/ .......inclusive of all taxes or in the form MRP Rs/ .........incl., of all taxes'.",
+    "Rule 6(3): Stickers for reducing MRP are permitted; stickers for increasing MRP are prohibited.",
+    "This check is for presence and value detection only. The system does not verify price accuracy or format compliance.",
+    "The 'inclusive of all taxes' check is reported as an observation, not a compliance determination."
+  ],
+  "limitations": [
+    "Based on original 2011 text only. The 2021 amendment may have added e-commerce entity definitions affecting MRP display requirements.",
+    "OCR may misread currency symbols or decimal values.",
+    "Products with sticker-reduced MRP may show two MRP values — the system should note both.",
+    "Alcohol, bidis, and LPG exemptions require manual product classification.",
+    "Format variations ('MRP: Rs.299/-', 'MRP ₹299', 'Maximum Price: Rs. 299.00') may not all be captured by primary patterns."
+  ],
+  "rule_spec_version": "1.0.0",
+  "last_verified": "2026-08-30"
+}

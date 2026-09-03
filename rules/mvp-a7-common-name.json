@@ -1,0 +1,85 @@
+{
+  "rule_id": "MVP-A7",
+  "title": "Common/Generic Name of Commodity Declared",
+  "field": "common_name",
+  "description": "Detect whether the common or generic name of the commodity is declared on the package label. Rule 6(1)(b) requires that the common or generic names of the commodity contained in the package shall be mentioned. This check identifies the presence of a product descriptor or generic commodity name. Brand names alone are not treated as sufficient evidence when a meaningful generic descriptor exists elsewhere on the label.",
+  "rule_reference": "Rule 6(1)(b), Legal Metrology (Packaged Commodities) Rules, 2011",
+  "source_document": "The Legal Metrology (Packaged Commodities) Rules, 2011",
+  "source_notification": "G.S.R. 202(E), dated 7th March 2011",
+  "source_page": "Page 5",
+  "source_version": "Original Rules (2011)",
+  "source_verification_status": "verified_original_text",
+  "amendment_status": "Unchanged since 2011. This sub-rule has not been amended.",
+  "applicable_scope": "All pre-packaged commodities intended for retail sale, excluding: packages >25kg/25L (Rule 3(a)), industrial/institutional consumers (Rule 3(b)).",
+  "mandatory": true,
+  "conditional": false,
+  "conditions": [],
+  "detection_method": {
+    "strategy": "keyword_and_context",
+    "description": "OCR extracts all text. The system searches for common/generic product descriptors using keyword patterns and contextual heuristics. Brand names alone are flagged as UNCERTAIN when a generic descriptor could be expected.",
+    "primary_patterns": [
+      "\\b(tea|coffee|biscuit|biscuits|rice|wheat|flour|sugar|salt|oil|ghee|milk|water|juice|soda|snack|snacks|chocolate|candy|soap|detergent|shampoo|paste|cream|powder|liquid|capsule|tablet|syrup|supplement|cereal|noodle|noodles|pasta|bread|cake|cookie|cookies|chips|namkeen|atta|maida|sooji|rava|dal|lentil|pulses|spice|spices|honey|jam|sauce|ketchup|pickle|chutney|vinegar|butter|cheese|yogurt|curd|ice cream|frozen|canned|bottled|packaged)\\b",
+      "\\b(water bottle|mineral water|drinking water|packaged drinking water)\\b",
+      "\\b(body wash|hand wash|face wash|toothpaste|mouthwash|deodorant|perfume|lotion|moisturizer|sunscreen|lip balm|hair oil|hair cream|face cream|body cream|baby powder|baby oil|diaper|tissue|napkin|sanitary)\\b",
+      "\\b(battery|bulb|tube|wire|cable|switch|plug|adapter|charger|headphone|earphone|speaker|camera|lens)\\b",
+      "\\b(toy|puzzle|game|ball|bat|sticker|notebook|pen|pencil|marker|crayon|paint|brush|paper|envelope|folder|file)\\b"
+    ],
+    "negative_patterns": [
+      "\\b(brand|premium|gold|silver|diamond|royal|classic|deluxe|special|original|authentic)\\b"
+    ],
+    "ocr_confidence_threshold": 0.5
+  },
+  "validation_logic": {
+    "pass_criteria": "A common/generic product descriptor is identified on the label, ideally near or distinct from the brand name.",
+    "evaluate": [
+      {
+        "step": 1,
+        "action": "Extract all OCR text lines",
+        "output": "text_lines"
+      },
+      {
+        "step": 2,
+        "action": "Search for common/generic product descriptors using primary_patterns",
+        "output": "generic_matches"
+      },
+      {
+        "step": 3,
+        "action": "If generic_matches is non-empty → DETECTED. If only brand-like text found → UNCERTAIN. If no product descriptor found → NOT_DETECTED."
+      }
+    ]
+  },
+  "observable_evidence": {
+    "description": "What the software can observe: text containing a common or generic product descriptor (e.g., 'Biscuits', 'Mineral Water', 'Rice') that identifies the type of commodity.",
+    "examples": [
+      "Text 'Premium Digestive Biscuits' detected — generic term 'Biscuits' found",
+      "Text 'Tata Sampann Chai' detected — 'Chai' (tea) found as generic descriptor",
+      "Text 'Colgate MaxFresh' detected — no generic product descriptor found",
+      "Text 'Himalaya Herbals Neem Face Wash' detected — 'Face Wash' found as generic descriptor"
+    ]
+  },
+  "status_values": {
+    "DETECTED": "A common/generic product descriptor was identified on the label.",
+    "NOT_DETECTED": "No common/generic product descriptor was found. The label may show only brand names.",
+    "UNCERTAIN": "Only brand-like text was found without a clear generic descriptor.",
+    "NOT_APPLICABLE": "Product is exempt under Rule 3 or Rule 26. Requires manual classification."
+  },
+  "cannot_conclude": [
+    "Whether the generic name is the legally required 'common or generic name' for this specific product category",
+    "Whether the generic name is in the correct position on the label per the Fourth Schedule",
+    "Whether multi-product packages have each product's name and quantity listed"
+  ],
+  "notes": [
+    "Rule 6(1)(b): 'The common or generic names of the commodity contained in the package and in case of packages with more than one product, the name and number or quantity of each product shall be mentioned on the package.'",
+    "Brand names alone are not necessarily the 'common or generic name'. A product called 'Good Day' must also identify itself as 'biscuits' or similar.",
+    "This check is for presence of a generic descriptor only. It does not verify legal sufficiency of the name.",
+    "Food articles may follow FSSAI naming conventions instead (Rule 6(1)(a) Explanation III)."
+  ],
+  "limitations": [
+    "OCR accuracy on curved or partially visible labels may cause false NOT_DETECTED results.",
+    "The system uses pattern matching against common Indian product categories — unusual or novel product types may not be recognized.",
+    "Product-category exemptions (food, cosmetics, drugs) are not automatically applied.",
+    "The system cannot distinguish between the 'common name' and a product description that is merely decorative."
+  ],
+  "rule_spec_version": "1.1.0",
+  "last_verified": "2026-09-02"
+}

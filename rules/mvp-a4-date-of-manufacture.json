@@ -1,0 +1,100 @@
+{
+  "rule_id": "MVP-A4",
+  "title": "Month and Year of Manufacture/Packing Present",
+  "field": "date_of_manufacture",
+  "description": "Detect whether the month and year of manufacture, pre-packing, or import is declared on the package. This check identifies the presence of a date declaration. It does not verify the date format against the applicable law for the specific product category.",
+  "rule_reference": "Rule 6(1)(d)",
+  "source_document": "The Legal Metrology (Packaged Commodities) Rules, 2011",
+  "source_notification": "GSR 202(E), dated 7th March 2011",
+  "source_page": "Pages 5-6",
+  "source_version": "Original Rules (2011)",
+  "source_verification_status": "verified_original_text",
+  "amendment_status": "Amendments 2012–2026 not text-verified. This rule is based solely on the original 2011 text.",
+  "applicable_scope": "All pre-packaged commodities intended for retail sale, excluding: packages >25kg/25L (Rule 3(a)), industrial/institutional consumers (Rule 3(b)). Multiple exemptions apply — see limitations.",
+  "mandatory": true,
+  "conditional": true,
+  "conditions": [
+    "Not required for: bidis, incense sticks (Rule 6(1)(A)(i))",
+    "Not required for: domestic LPG cylinders of 14.2kg or 5kg (Rule 6(1)(A)(ii))",
+    "Food articles: follow Prevention of Food Adulteration Act, 1954 provisions (Rule 6(1)(d) first proviso)",
+    "Seeds: follow Seeds Act, 1966 provisions (Rule 6(1)(d) second proviso)",
+    "Cosmetics: follow Drugs and Cosmetics Rules, 1945 provisions (Rule 6(1)(d) third proviso)"
+  ],
+  "detection_method": {
+    "strategy": "date_pattern_recognition",
+    "description": "OCR extracts all text. The system searches for date-like patterns: month names/abbreviations with year, or numeric month/year formats, near date-related keywords.",
+    "primary_patterns": [
+      "\\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\.?\\s*\\d{4}\\b",
+      "\\b(Manufactured|Mfg\\.?|Mfd\\.?|Packed|POD|Date|Production)\\b.*\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}",
+      "\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}",
+      "\\b(January|February|March|April|May|June|July|August|September|October|November|December)\\s+\\d{4}\\b",
+      "\\b(\\d{1,2})\\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\.?\\s*,?\\s*\\d{4}\\b"
+    ],
+    "keyword_patterns": [
+      "\\b(Mfg\\.?|Mfd\\.?|Manufactured|Manufacturing|Date|POD|Production Date|Packing Date|Batch|Lot)\\b"
+    ],
+    "ocr_confidence_threshold": 0.6
+  },
+  "validation_logic": {
+    "pass_criteria": "A month+year combination is found in the OCR text, either as a standalone date or near a date-related keyword.",
+    "evaluate": [
+      {
+        "step": 1,
+        "action": "Extract all OCR text lines",
+        "output": "text_lines"
+      },
+      {
+        "step": 2,
+        "action": "Search for date patterns (primary_patterns)",
+        "output": "date_matches"
+      },
+      {
+        "step": 3,
+        "action": "Search for date-related keywords (keyword_patterns)",
+        "output": "keyword_matches"
+      },
+      {
+        "step": 4,
+        "action": "If date_matches contains month+year → DETECTED. If date_matches contains partial date (year only or month only) → UNCERTAIN. If keyword_matches found but no date → UNCERTAIN. If neither found → NOT_DETECTED."
+      }
+    ]
+  },
+  "observable_evidence": {
+    "description": "What the software can observe: a text string containing a month name/abbreviation and a year (e.g., 'March 2024', '03/2024', 'Mfg: Jan 2025'), or a date-related keyword followed by a date pattern.",
+    "examples": [
+      "Text 'Mfg Date: March 2024' detected",
+      "Text '03/2024' detected near keyword 'Manufactured'",
+      "Text 'POD: 15/01/2025' detected (day+month+year)",
+      "Text 'Batch: AB123' found but no date pattern"
+    ]
+  },
+  "status_values": {
+    "DETECTED": "A month+year date pattern was found on the label.",
+    "NOT_DETECTED": "No date pattern or date-related keyword was found.",
+    "UNCERTAIN": "A partial date (year only, month only) or a date keyword without an associated date was found.",
+    "NOT_APPLICABLE": "Product is exempt (bidis, incense sticks, LPG, food, cosmetics, seeds). Requires manual classification."
+  },
+  "cannot_conclude": [
+    "Whether the date format satisfies the LMPC requirement for this specific product category",
+    "Whether a food product's 'Best before' / 'Use by' date satisfies the Rule 6(1)(d) requirement",
+    "Whether the date follows the allowance for rubber stamp usage (withdrawn by GSR 748(E) 2012)",
+    "Whether the packaging material reuse provision (Rule 6(1)(B)) applies",
+    "Whether the date is accurate"
+  ],
+  "notes": [
+    "Rule 6(1)(d): 'The month and year in which the commodity is manufactured or pre-packed or imported shall be mentioned in the package.'",
+    "Rule 6(1)(d) Explanation I: 'The month and the year in which commodity is pre-packed may be expressed either in words, or by numerals indicating the month and the year, or by both.'",
+    "Rule 6(1)(B): Packaging material from a previous month may be used for the next succeeding month only.",
+    "The system detects presence of a date pattern. Format compliance is reported as an observation only.",
+    "Food products commonly use 'Best before' or 'Use by' dates which may or may not satisfy Rule 6(1)(d). The system notes this ambiguity."
+  ],
+  "limitations": [
+    "Based on original 2011 text only. Amendments may have modified date format requirements.",
+    "Multiple product-category exemptions mean the system may flag products that are legally exempt.",
+    "OCR may misread date characters (e.g., '0' as 'O', '1' as 'l').",
+    "Some products use batch codes or lot numbers instead of explicit dates — the system cannot interpret these.",
+    "The 'when packed' provision (Third Schedule) may affect date interpretation for certain commodities."
+  ],
+  "rule_spec_version": "1.0.0",
+  "last_verified": "2026-08-30"
+}

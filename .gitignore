@@ -1,0 +1,46 @@
+# ============================================
+# LegalCheck AI — .gitignore
+# ============================================
+
+# ── Environment / Secrets ──
+# NEVER commit .env files containing real credentials.
+# .env.example is intentionally NOT ignored — it contains only placeholders.
+.env
+.env.*
+!.env.example
+
+# ── Node.js ──
+node_modules/
+dist/
+.vite/
+
+# ── Python ──
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── IDE / Editor ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Testing / Coverage ──
+coverage/
+*.lcov
+
+# ── Uploads (user-generated, not source) ──
+backend/uploads/*
+!backend/uploads/.gitkeep

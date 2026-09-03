@@ -1,0 +1,101 @@
+{
+  "rule_id": "MVP-A5",
+  "title": "Consumer Care Telephone Number Present",
+  "field": "consumer_care_phone",
+  "description": "Detect whether a telephone number for consumer complaints is declared on the package. This check identifies the presence of a contact phone number. It does not verify that the number is active, belongs to the manufacturer, or is the correct contact for complaints.",
+  "rule_reference": "Rule 6(2)",
+  "source_document": "The Legal Metrology (Packaged Commodities) Rules, 2011",
+  "source_notification": "GSR 202(E), dated 7th March 2011",
+  "source_page": "Page 7",
+  "source_version": "Original Rules (2011)",
+  "source_verification_status": "verified_original_text",
+  "amendment_status": "Amendments 2012–2026 not text-verified. This rule is based solely on the original 2011 text.",
+  "applicable_scope": "All pre-packaged commodities intended for retail sale, excluding: packages >25kg/25L (Rule 3(a)), industrial/institutional consumers (Rule 3(b)).",
+  "mandatory": true,
+  "conditional": false,
+  "conditions": [],
+  "detection_method": {
+    "strategy": "phone_number_regex",
+    "description": "OCR extracts all text. The system searches for phone number patterns (Indian format) in the label text, ideally near consumer-care-related keywords.",
+    "primary_patterns": [
+      "\\b\\d{10}\\b",
+      "\\b\\+91[\\s-]?\\d{10}\\b",
+      "\\b0\\d{2,4}[\\s-]?\\d{6,8}\\b",
+      "\\b\\d{5}[\\s-]?\\d{5}\\b"
+    ],
+    "keyword_context": [
+      "\\b(consumer\\s*care|contact\\s*us|helpline|toll\\s*free|customer\\s*care|complaints?|feedback|call\\s*us)\\b"
+    ],
+    "exclude_patterns": [
+      "\\b(pin|pincode|pin\\s*code|zip)\\s*:??\\s*\\d{6}\\b",
+      "\\b(mrp|mrp\\s*rs|price)\\s*:??\\s*\\d+\\b",
+      "\\b(batch|lot|lot\\s*no)\\s*:??\\s*\\d+\\b"
+    ],
+    "ocr_confidence_threshold": 0.6
+  },
+  "validation_logic": {
+    "pass_criteria": "A 10-digit phone number (with or without +91 prefix or 0 prefix) is found on the label.",
+    "evaluate": [
+      {
+        "step": 1,
+        "action": "Extract all OCR text lines",
+        "output": "text_lines"
+      },
+      {
+        "step": 2,
+        "action": "Search for phone number patterns (primary_patterns)",
+        "output": "phone_matches"
+      },
+      {
+        "step": 3,
+        "action": "Filter out false positives using exclude_patterns (PIN codes, MRP values, batch numbers)",
+        "output": "filtered_phones"
+      },
+      {
+        "step": 4,
+        "action": "Check if any phone match is near consumer-care keywords (keyword_context)",
+        "output": "contextual_phones"
+      },
+      {
+        "step": 5,
+        "action": "If filtered_phones non-empty → DETECTED. If contextual_phones non-empty → DETECTED (high confidence). If phone matches found but all filtered out → UNCERTAIN. If no phone patterns found → NOT_DETECTED."
+      }
+    ]
+  },
+  "observable_evidence": {
+    "description": "What the software can observe: a 10-digit numeric pattern consistent with an Indian phone number (mobile: starts with 6-9, landline: starts with 0+area code), ideally near text like 'Consumer Care', 'Contact', 'Helpline', etc.",
+    "examples": [
+      "Text 'Consumer Care: 1800-123-4567' detected — toll-free number found",
+      "Text 'Contact: +91 98765 43210' detected — mobile number found",
+      "Text 'Helpline: 011-23456789' detected — landline number found",
+      "Text 'PIN: 110001' detected but filtered (PIN code, not phone)"
+    ]
+  },
+  "status_values": {
+    "DETECTED": "A phone number pattern was found on the label, optionally near consumer-care keywords.",
+    "NOT_DETECTED": "No phone number pattern was found.",
+    "UNCERTAIN": "A numeric pattern resembling a phone number was found but context is ambiguous (e.g., could be a batch number or PIN code).",
+    "NOT_APPLICABLE": "Product is exempt under Rule 3 or Rule 26. Requires manual classification."
+  },
+  "cannot_conclude": [
+    "Whether the phone number is active or belongs to the manufacturer/packer",
+    "Whether the number is the correct contact for consumer complaints",
+    "Whether the number is a toll-free number, landline, or mobile",
+    "Whether the consumer care contact is a separate entity from the manufacturer"
+  ],
+  "notes": [
+    "Rule 6(2): 'Every package shall bear the name, address, telephone number, e mail address, if available, of the person who can be or the office which can be, contacted, in case of consumer complaints.'",
+    "The telephone number is mandatory. The email address is conditional ('if available').",
+    "This check focuses on the phone number only. Consumer care name/address is covered by MVP-A6.",
+    "Toll-free numbers (1800-xxx-xxxx) are common and should be accepted."
+  ],
+  "limitations": [
+    "Based on original 2011 text only. Amendments may have added additional contact requirements.",
+    "OCR may misread digits (e.g., '0' as 'O', '1' as 'l', '5' as 'S').",
+    "PIN codes (6 digits) may be confused with phone numbers if not properly filtered.",
+    "Some packages print the phone number in very small font or on a non-principal panel.",
+    "The system cannot verify that the number belongs to the manufacturer vs. a third-party call center."
+  ],
+  "rule_spec_version": "1.0.0",
+  "last_verified": "2026-08-30"
+}

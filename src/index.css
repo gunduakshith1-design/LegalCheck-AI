@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Professional government/compliance aesthetic */
+:root {
+  --primary-50: #eff6ff;
+  --primary-100: #dbeafe;
+  --primary-200: #bfdbfe;
+  --primary-300: #93c5fd;
+  --primary-400: #60a5fa;
+  --primary-500: #3b82f6;
+  --primary-600: #2563eb;
+  --primary-700: #1d4ed8;
+  --primary-800: #1e40af;
+  --primary-900: #1e3a8a;
+
+  ---success-50: #f0fdf4;
+  --success-100: #dcfce7;
+  --success-200: #bbf7d0;
+  --success-300: #86efac;
+  --success-400: #4ade80;
+  --success-500: #22c55e;
+  --success-600: #16a34a;
+  --success-700: #15803d;
+  --success-800: #166534;
+  --success-900: #14532d;
+
+  --warning-50: #fefce8;
+  --warning-100: #fef3c7;
+  --warning-200: #fde68a;
+  --warning-300: #fcd34d;
+  --warning-400: #fbbf24;
+  --warning-500: #f59e0b;
+  --warning-600: #d97706;
+  --warning-700: #b45309;
+  --warning-800: #92400e;
+  --warning-900: #78350f;
+
+  --danger-50: #fef2f2;
+  --danger-100: #fee2e2;
+  --danger-200: #fecaca;
+  --danger-300: #fca5a5;
+  --danger-400: #f87171;
+  --danger-500: #ef4444;
+  --danger-600: #dc2626;
+  --danger-700: #b91c1c;
+  --danger-800: #991b1b;
+  --danger-900: #7f1d1d;
+
+  --neutral-50: #f9fafb;
+  --neutral-100: #f3f4f6;
+  --neutral-200: #e5e7eb;
+  --neutral-300: #d1d5db;
+  --neutral-400: #9ca3af;
+  --neutral-500: #6b7280;
+  --neutral-600: #4b5563;
+  --neutral-700: #374151;
+  --neutral-800: #1f2937;
+  --neutral-900: #111827;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+html {
+  overflow-x: hidden;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.5;
+  color: var(--neutral-900);
+  background-color: var(--neutral-50);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Smooth text rendering */
+* {
+  box-sizing: border-box;
+}
+
+/* Prevent flex children from overflowing */
+.min-w-0 {
+  min-width: 0;
+}
+
+/* Ensure tables don't expand viewport */
+table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+/* Controlled overflow for text */
+.overflow-wrap-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Custom utility classes for professional compliance UI */
+@layer components {
+  .stat-card {
+    @apply bg-white rounded-lg border border-neutral-200 p-6 shadow-sm;
+  }
+
+  .compliance-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-md text-sm font-medium;
+  }
+
+  .compliance-badge-pass {
+    @apply bg-success-100 text-success-800 border border-success-200;
+  }
+
+  .compliance-badge-warning {
+    @apply bg-warning-100 text-warning-800 border border-warning-200;
+  }
+
+  .compliance-badge-violation {
+    @apply bg-danger-100 text-danger-800 border border-danger-200;
+  }
+
+  .scan-dropzone {
+    @apply border-2 border-dashed border-neutral-300 rounded-lg p-8 bg-neutral-50 hover:border-primary-400 hover:bg-primary-50 transition-all duration-200;
+  }
+
+  .scan-dropzone.active {
+    @apply border-primary-500 bg-primary-50;
+  }
+
+  .scan-dropzone.error {
+    @apply border-danger-400 bg-danger-50;
+  }
+
+  .processing-step {
+    @apply flex items-center space-x-3 p-3 rounded-md;
+  }
+
+  .processing-step.pending {
+    @apply text-neutral-500;
+  }
+
+  .processing-step.active {
+    @apply text-primary-700 bg-primary-50;
+  }
+
+  .processing-step.completed {
+    @apply text-success-700;
+  }
+}

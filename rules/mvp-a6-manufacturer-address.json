@@ -1,0 +1,93 @@
+{
+  "rule_id": "MVP-A6",
+  "title": "Manufacturer/Packer/Importer Address Present",
+  "field": "manufacturer_address",
+  "description": "Detect whether an address associated with the manufacturer, packer, or importer is present on the package label. This check identifies the presence of address-like text near the manufacturer name. It does not verify that the address is complete (street, city, state, PIN) or that it matches a registered address.",
+  "rule_reference": "Rule 6(1)(a), Rule 10(1), Rule 10(1) Explanation",
+  "source_document": "The Legal Metrology (Packaged Commodities) Rules, 2011",
+  "source_notification": "GSR 202(E), dated 7th March 2011",
+  "source_page": "Pages 5, 10-11",
+  "source_version": "Original Rules (2011)",
+  "source_verification_status": "verified_original_text",
+  "amendment_status": "Amendments 2012–2026 not text-verified. This rule is based solely on the original 2011 text.",
+  "applicable_scope": "All pre-packaged commodities intended for retail sale, excluding: packages >25kg/25L (Rule 3(a)), industrial/institutional consumers (Rule 3(b)).",
+  "mandatory": true,
+  "conditional": false,
+  "conditions": [],
+  "detection_method": {
+    "strategy": "address_pattern_and_context",
+    "description": "OCR extracts all text. The system searches for address-like text (containing city names, state names, PIN codes, street indicators) in proximity to manufacturer name or qualifier phrases.",
+    "primary_patterns": [
+      "\\b\\d{6}\\b",
+      "\\b(Mumbai|Delhi|Bangalore|Bengaluru|Chennai|Hyderabad|Kolkata|Pune|Ahmedabad|Jaipur|Lucknow|Chandigarh|Bhopal|Indore|Nagpur|Surat|Visakhapatnam|Coimbatore|Kochi|Thiruvananthapuram|Goa|Patna|Ranchi|Guwahati|Bhubaneswar|Cuttack|Dehradun|Shimla|Srinagar|Jammu|Imphal|Shillong|Aizawl|Kohima|Itanagar|Gangtok|Agartala|Panaji)\\b",
+      "\\b(Andhra\\s*Pradesh|Arunachal\\s*Pradesh|Assam|Bihar|Chhattisgarh|Goa|Gujarat|Haryana|Himachal\\s*Pradesh|Jharkhand|Karnataka|Kerala|Madhya\\s*Pradesh|Maharashtra|Manipur|Meghalaya|Mizoram|Nagaland|Odisha|Odisha|Punjab|Rajasthan|Sikkim|Tamil\\s*Nadu|Telangana|Tripura|Uttar\\s*Pradesh|Uttarakhand|West\\s*Bengal|Delhi|Jammu\\s*&\\s*Kashmir|Ladakh|Chandigarh|Puducherry|Lakshadweep|Andaman\\s*&\\s*Nicobar|Dadra\\s*&\\s*Nagar\\s*Haveli|Ladakh)\\b",
+      "\\b(Plot|Block|Sector|Floor|Building|Office|Factory|Plant|Unit|Premises|Address|Location|Road|Street|Lane|Avenue|Nagar|Colony|Phase|District|Taluka|Tehsil)\\b"
+    ],
+    "contextual_proximity": "Address text should be within 3-5 text lines of the manufacturer name or qualifier phrase.",
+    "ocr_confidence_threshold": 0.5
+  },
+  "validation_logic": {
+    "pass_criteria": "Address-like text (containing at least one of: PIN code, city name, state name, or street/building indicator) is found near the manufacturer name or qualifier phrase.",
+    "evaluate": [
+      {
+        "step": 1,
+        "action": "Extract all OCR text lines",
+        "output": "text_lines"
+      },
+      {
+        "step": 2,
+        "action": "Locate manufacturer name or qualifier phrase (from MVP-A1 results if available)",
+        "output": "manufacturer_context"
+      },
+      {
+        "step": 3,
+        "action": "Search for address patterns in text lines within proximity of manufacturer_context",
+        "output": "address_candidates"
+      },
+      {
+        "step": 4,
+        "action": "If address_candidates non-empty → DETECTED. If manufacturer_context found but no address nearby → UNCERTAIN. If no manufacturer context and no address patterns → NOT_DETECTED."
+      }
+    ]
+  },
+  "observable_evidence": {
+    "description": "What the software can observe: text containing address-like elements (PIN code, city name, state name, street/building indicators) located near the manufacturer name or qualifier phrase on the label.",
+    "examples": [
+      "Text 'Plot 42, Sector 15, Gurgaon, Haryana - 122001' detected near 'Manufactured by ABC Ltd.'",
+      "Text 'Mumbai 400001' detected near manufacturer name",
+      "Text 'Made in India' detected — no specific address found",
+      "Text 'ABC Corp.' found but no address in adjacent text lines"
+    ]
+  },
+  "status_values": {
+    "DETECTED": "Address-like text was found near the manufacturer/packer/importer name.",
+    "NOT_DETECTED": "No address-like text was found on the label.",
+    "UNCERTAIN": "A manufacturer name was found but the associated address text is unclear, partially occluded, or missing.",
+    "NOT_APPLICABLE": "Product is exempt under Rule 3 or Rule 26. Requires manual classification."
+  },
+  "cannot_conclude": [
+    "Whether the address is 'complete' as defined by Rule 10(1) Explanation (postal address with street, number, city, state, or PIN)",
+    "Whether a shorter address registered under Rule 28 is in use",
+    "Whether the address matches the registered address of the manufacturer/packer/importer",
+    "Whether the entity at this address is the actual manufacturer vs. a packer or importer",
+    "Whether the address is for the manufacturer, packer, or importer when multiple entities are listed",
+    "Whether a food product follows PFA/FSSAI address provisions instead"
+  ],
+  "notes": [
+    "Rule 10(1): 'every package kept, offered or exposed for sale or sold shall bear conspicuously on it, the name and complete address of the manufacturer.'",
+    "Rule 10(1) Explanation: 'complete address means the postal address at which the factory is situated, and, in any other case, the name of the street, number (if any) assigned to the premises of the manufacturer or packer and either the name of the city and State where the business is carried on by the manufacturer or packer or the Postal Index Number (PIN) Code.'",
+    "Rule 28: A shorter address may be registered with the Director/Controller and used on labels.",
+    "Rule 10(1) proviso: For packages ≤5 cubic cm, a mark enabling identification is sufficient.",
+    "This check is for presence only. The system does not verify address completeness or registration status."
+  ],
+  "limitations": [
+    "Based on original 2011 text only. Amendments may have modified address requirements.",
+    "OCR accuracy on small-print addresses, curved surfaces, or reflective labels may be low.",
+    "The system cannot distinguish between manufacturer address and packer/importer address when multiple entities are listed.",
+    "PIN code detection may produce false positives if PIN-like numbers appear in other contexts (batch numbers, etc.).",
+    "Product category exemptions (food, cosmetics, drugs) are not automatically applied.",
+    "Indian city/state name matching is extensive but not exhaustive — new cities or misspellings may be missed."
+  ],
+  "rule_spec_version": "1.0.0",
+  "last_verified": "2026-08-30"
+}
