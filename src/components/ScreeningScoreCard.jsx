@@ -294,19 +294,22 @@ export default function ScreeningScoreCard({ scoreData, ruleResults = [], textRe
     if (showIssues) setShowDetails(true)
   }, [showIssues])
 
+  // Sort rules: DETECTED first, then UNCERTAIN, then NOT_DETECTED, then NOT_APPLICABLE.
+  // Computed unconditionally before any early return so all hooks run in the
+  // same order on every render (Rules of Hooks). When scoreData is null the
+  // result is simply unused. Depends only on the ruleResults prop.
+  const sortedRules = useMemo(() => {
+    if (!ruleResults || ruleResults.length === 0) return []
+    const order = { DETECTED: 0, UNCERTAIN: 1, NOT_DETECTED: 2, NOT_APPLICABLE: 3 }
+    return [...ruleResults].sort((a, b) => (order[a.status] ?? 4) - (order[b.status] ?? 4))
+  }, [ruleResults])
+
   if (!scoreData) return null
 
   const score = scoreData.screening_score
   const thresholdStatus = scoreData.threshold_status
   const isMet = thresholdStatus === 'MET'
   const isEvaluable = score !== null && thresholdStatus !== 'NOT_EVALUABLE'
-
-  // Sort rules: DETECTED first, then UNCERTAIN, then NOT_DETECTED, then NOT_APPLICABLE
-  const sortedRules = useMemo(() => {
-    if (!ruleResults || ruleResults.length === 0) return []
-    const order = { DETECTED: 0, UNCERTAIN: 1, NOT_DETECTED: 2, NOT_APPLICABLE: 3 }
-    return [...ruleResults].sort((a, b) => (order[a.status] ?? 4) - (order[b.status] ?? 4))
-  }, [ruleResults])
 
   if (compact) {
     return (

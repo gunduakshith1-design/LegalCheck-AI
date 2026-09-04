@@ -7,6 +7,12 @@ import { useInView, useMotionValue, useSpring } from 'framer-motion';
  * Uses framer-motion spring animation.
  * Respects prefers-reduced-motion.
  * Shows final value immediately when reduced motion is enabled.
+ *
+ * The count-up animation is gated on IntersectionObserver, but visibility of
+ * the final value never depends solely on it: some mobile browsers (e.g. iOS
+ * Safari) fail to deliver intersection callbacks, which would otherwise leave
+ * the number stuck at the start value (0). A short fallback timer starts the
+ * animation anyway, so the correct value can never remain hidden.
  */
 export default function CountUp({
   to,
@@ -19,6 +25,17 @@ export default function CountUp({
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: '-20px' });
   const [reducedMotion, setReducedMotion] = useState(false);
+
+  // Fallback: if IntersectionObserver never reports the counter in view,
+  // start the animation shortly after mount regardless. On working browsers
+  // the observer fires first and the animation is unchanged.
+  const [inViewFallback, setInViewFallback] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setInViewFallback(true), 500);
+    return () => clearTimeout(t);
+  }, []);
+
+  const visible = isInView || inViewFallback;
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -64,13 +81,13 @@ export default function CountUp({
 
   // Animate when in view
   useEffect(() => {
-    if (isInView && startWhen && !reducedMotion) {
+    if (visible && startWhen && !reducedMotion) {
       const timeoutId = setTimeout(() => {
         motionValue.set(to);
       }, 100);
       return () => clearTimeout(timeoutId);
     }
-  }, [isInView, startWhen, motionValue, to, reducedMotion]);
+  }, [visible, startWhen, motionValue, to, reducedMotion]);
 
   // Update displayed value on spring change
   useEffect(() => {

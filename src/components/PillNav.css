@@ -152,11 +152,7 @@
 }
 
 /* Add bottom padding to main content on mobile */
-@media (max-width: 768px) {
-  main {
-    padding-bottom: 5rem !important;
-  }
-}
+
 
 @media (prefers-reduced-motion: reduce) {
   .pill-nav-pill,

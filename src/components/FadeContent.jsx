@@ -19,6 +19,16 @@ export default function FadeContent({
   const [isVisible, setIsVisible] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
 
+  // Fallback: if IntersectionObserver never reports the block in view (some
+  // mobile browsers, e.g. iOS Safari, fail to deliver intersection callbacks),
+  // reveal it shortly after mount regardless. On working browsers the observer
+  // fires first and the entrance animation is unchanged.
+  const [fallbackVisible, setFallbackVisible] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setFallbackVisible(true), 500);
+    return () => clearTimeout(t);
+  }, []);
+
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
     setReducedMotion(mq.matches);
@@ -48,12 +58,14 @@ export default function FadeContent({
     return () => observer.disconnect();
   }, [threshold, reducedMotion]);
 
+  const visible = isVisible || fallbackVisible;
+
   const style = reducedMotion
     ? {}
     : {
-        opacity: isVisible ? 1 : 0,
-        filter: blur ? (isVisible ? 'blur(0px)' : 'blur(8px)') : 'none',
-        transform: isVisible ? 'translateY(0)' : 'translateY(6px)',
+        opacity: visible ? 1 : 0,
+        filter: blur ? (visible ? 'blur(0px)' : 'blur(8px)') : 'none',
+        transform: visible ? 'translateY(0)' : 'translateY(6px)',
         transition: `opacity ${duration}ms ease-out ${delay}ms, transform ${duration}ms ease-out ${delay}ms, filter ${duration}ms ease-out ${delay}ms`,
       };
 
