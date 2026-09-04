@@ -31,6 +31,14 @@ logger = logging.getLogger(__name__)
 # Lazy-loaded OCR instance
 _ocr_engine = None
 
+# Cap the longest edge of an input image before preprocessing/OCR.
+# Very large phone photos (4032x3024 etc.) make denoise/CLAHE + ONNX
+# inference unnecessarily slow with no measurable accuracy gain.
+# Benchmark (2026-09-04) selected 2000px: ~64% faster per image with no
+# legal-metrology field regressions vs full resolution; the first regressions
+# appear at 1600px (date_of_manufacture) / 1280px (MRP).
+MAX_OCR_DIMENSION = 2000
+
 
 def _get_ocr_engine():
     """Get or initialize the RapidOCR engine."""
@@ -71,6 +79,19 @@ def preprocess_image(image_bytes: bytes, level: str = "standard") -> np.ndarray:
         raise ValueError(f"Could not decode image from bytes ({len(image_bytes)} bytes, first 4: {image_bytes[:4]})")
 
     logger.info(f"[preprocess] Decoded image: {img.shape}")
+
+    # Performance: downscale images larger than MAX_OCR_DIMENSION px on the
+    # longest edge before the expensive denoise/CLAHE/OCR work.  Aspect ratio
+    # is preserved; images already at or below the cap pass through unchanged.
+    h, w = img.shape[:2]
+    if max(h, w) > MAX_OCR_DIMENSION:
+        scale = MAX_OCR_DIMENSION / max(h, w)
+        new_size = (int(round(w * scale)), int(round(h * scale)))
+        img = cv2.resize(img, new_size, interpolation=cv2.INTER_AREA)
+        logger.info(
+            f"[preprocess] Downscaled {w}x{h} -> {new_size[0]}x{new_size[1]} "
+            f"(max {MAX_OCR_DIMENSION}px, INTER_AREA)"
+        )
 
     if level == "none":
         return img
