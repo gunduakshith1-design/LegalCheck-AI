@@ -219,10 +219,12 @@ export default function ProductDetail() {
     screening_score: score,
     threshold: 70,
     threshold_status: score >= 70 ? 'MET' : 'BELOW_THRESHOLD',
-    applicable_rules: ruleResults.length,
-    detected_rules: ruleResults.filter((r) => r.status === 'DETECTED').length,
-    uncertain_rules: ruleResults.filter((r) => r.status === 'UNCERTAIN').length,
-    not_detected_rules: ruleResults.filter((r) => r.status === 'NOT_DETECTED').length,
+    // Informational rules (flag from the rule contract, absent on old
+    // persisted rows) are excluded from the breakdown to match the score.
+    applicable_rules: ruleResults.filter((r) => !r.informational).length,
+    detected_rules: ruleResults.filter((r) => r.status === 'DETECTED' && !r.informational).length,
+    uncertain_rules: ruleResults.filter((r) => r.status === 'UNCERTAIN' && !r.informational).length,
+    not_detected_rules: ruleResults.filter((r) => r.status === 'NOT_DETECTED' && !r.informational).length,
     not_applicable_rules: ruleResults.filter((r) => r.status === 'NOT_APPLICABLE').length,
   } : null
 

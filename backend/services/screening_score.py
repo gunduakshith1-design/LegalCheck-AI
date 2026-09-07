@@ -13,6 +13,7 @@ Scoring model:
   UNCERTAIN      = 50 points
   NOT_DETECTED   = 0 points
   NOT_APPLICABLE = excluded from denominator
+  informational  = excluded from the score entirely (rule contract flag)
 
 Score = sum(rule_points) / number_of_applicable_rules
 
@@ -114,6 +115,17 @@ def calculate_screening_score(rule_results: list[dict[str, Any]]) -> ScreeningSc
         # Handle enum values
         if hasattr(status, "value"):
             status = status.value
+
+        # Informational rules (e.g. consumer-care email) are documented in the
+        # rule contract as not affecting the screening score. The flag comes
+        # from the rule definition via the rule result — no rule IDs hardcoded
+        # here. Missing flag on legacy persisted dicts defaults to False
+        # (backward compatible: legacy results keep the old inclusion behavior).
+        if isinstance(rule, dict):
+            if bool(rule.get("informational", False)):
+                continue
+        elif bool(getattr(rule, "informational", False)):
+            continue
 
         if status == "NOT_APPLICABLE":
             not_applicable += 1

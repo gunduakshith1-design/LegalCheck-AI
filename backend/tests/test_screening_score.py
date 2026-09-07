@@ -222,5 +222,138 @@ class TestScreeningScorePersistence(unittest.TestCase):
         self.assertEqual(result.score, 100.0)
 
 
+# ---------------------------------------------------------------------------
+# Test: Informational-rule exclusion (data-driven from rule contract)
+# ---------------------------------------------------------------------------
+
+class TestInformationalExclusion(unittest.TestCase):
+    """Informational rules (rule contract flag) are excluded from points,
+    counts, and denominator. Missing flag on legacy dicts = False."""
+
+    def _rule(self, status: str, informational: bool | None = None) -> dict:
+        rule = {"rule_id": "TEST", "status": status, "field": "test"}
+        if informational is not None:
+            rule["informational"] = informational
+        return rule
+
+    def test_informational_detected_excluded(self):
+        rules = [
+            self._rule("DETECTED"),
+            self._rule("DETECTED"),
+            self._rule("DETECTED"),
+            self._rule("DETECTED"),
+            self._rule("DETECTED"),
+            self._rule("UNCERTAIN"),
+            self._rule("DETECTED", informational=True),  # excluded
+            self._rule("NOT_APPLICABLE"),
+        ]
+        result = calculate_screening_score(rules)
+        # (5*100 + 1*50) / 6 applicable
+        self.assertAlmostEqual(result.score, 550 / 6, places=2)
+        self.assertEqual(result.applicable_rules, 6)
+        self.assertEqual(result.detected_rules, 5)
+        self.assertEqual(result.uncertain_rules, 1)
+        self.assertEqual(result.not_applicable_rules, 1)
+
+    def test_informational_not_detected_excluded(self):
+        rules = [
+            self._rule("DETECTED"),
+            self._rule("DETECTED"),
+            self._rule("DETECTED"),
+            self._rule("DETECTED"),
+            self._rule("DETECTED"),
+            self._rule("UNCERTAIN"),
+            self._rule("NOT_DETECTED", informational=True),  # excluded
+        ]
+        result = calculate_screening_score(rules)
+        # (5*100 + 1*50) / 6 — NOT_DETECTED informational neither scores 0
+        # nor inflates the denominator
+        self.assertAlmostEqual(result.score, 550 / 6, places=2)
+        self.assertEqual(result.applicable_rules, 6)
+        self.assertEqual(result.not_detected_rules, 0)
+
+    def test_informational_uncertain_excluded(self):
+        rules = [
+            self._rule("DETECTED") for _ in range(6)
+        ] + [self._rule("UNCERTAIN", informational=True)]
+        result = calculate_screening_score(rules)
+        self.assertAlmostEqual(result.score, 100.0)
+        self.assertEqual(result.applicable_rules, 6)
+        self.assertEqual(result.uncertain_rules, 0)
+
+    def test_all_detected_with_informational_stays_100(self):
+        # Real-product regression: 8 mandatory DETECTED + informational
+        # DETECTED + 1 NOT_APPLICABLE must remain exactly 100.0.
+        rules = [
+            self._rule("DETECTED") for _ in range(8)
+        ] + [
+            self._rule("DETECTED", informational=True),
+            self._rule("NOT_APPLICABLE"),
+        ]
+        result = calculate_screening_score(rules)
+        self.assertEqual(result.score, 100.0)
+        self.assertEqual(result.threshold_status, "MET")
+        self.assertEqual(result.applicable_rules, 8)
+        self.assertEqual(result.detected_rules, 8)
+
+    def test_non_informational_scores_exactly_as_before(self):
+        # Without any informational flag, results are identical to the
+        # historical formula.
+        rules = [self._rule("DETECTED") for _ in range(5)] + [self._rule("UNCERTAIN")]
+        result = calculate_screening_score(rules)
+        self.assertAlmostEqual(result.score, (5 * 100 + 50) / 6, places=2)
+        self.assertEqual(result.applicable_rules, 6)
+
+    def test_legacy_dicts_without_flag_still_supported(self):
+        # Old persisted rule-result dicts have no informational key — they
+        # must be treated as non-informational (included), unchanged.
+        legacy = [
+            {"rule_id": "A", "status": "DETECTED", "field": "f1"},
+            {"rule_id": "B", "status": "UNCERTAIN", "field": "f2"},
+            {"rule_id": "C", "status": "DETECTED", "field": "f3"},  # would be A10 pre-fix
+        ]
+        result = calculate_screening_score(legacy)
+        self.assertAlmostEqual(result.score, (200 + 50) / 3, places=2)
+        self.assertEqual(result.applicable_rules, 3)
+
+    def test_not_applicable_informational_edge(self):
+        # Informational + NOT_APPLICABLE: excluded from both counters —
+        # it must not be counted as not_applicable either.
+        rules = [
+            self._rule("DETECTED") for _ in range(5)
+        ] + [self._rule("NOT_APPLICABLE", informational=True)]
+        result = calculate_screening_score(rules)
+        self.assertEqual(result.score, 100.0)
+        self.assertEqual(result.applicable_rules, 5)
+        self.assertEqual(result.not_applicable_rules, 0)
+
+    def test_gate_recculated_for_future_scans(self):
+        # 70% gate uses the corrected score: 3 DETECTED + 5 UNCERTAIN others
+        # = 550/8 = 68.75 → BELOW_THRESHOLD even though the legacy formula
+        # (with a DETECTED informational rule) would have shown 72.2 MET.
+        rules = [
+            self._rule("DETECTED") for _ in range(3)
+        ] + [self._rule("UNCERTAIN") for _ in range(5)]
+        result = calculate_screening_score(rules)
+        self.assertAlmostEqual(result.score, 68.75, places=2)
+        self.assertEqual(result.threshold_status, "BELOW_THRESHOLD")
+
+        # Same others + informational DETECTED stays excluded → identical score
+        rules_with_info = rules + [self._rule("DETECTED", informational=True)]
+        result2 = calculate_screening_score(rules_with_info)
+        self.assertAlmostEqual(result2.score, 68.75, places=2)
+        self.assertEqual(result2.threshold_status, "BELOW_THRESHOLD")
+
+    def test_object_input_with_informational_attr(self):
+        from types import SimpleNamespace
+        rules = [
+            SimpleNamespace(status="DETECTED", informational=False),
+            SimpleNamespace(status="DETECTED", informational=True),
+        ]
+        result = calculate_screening_score(rules)
+        self.assertEqual(result.score, 100.0)
+        self.assertEqual(result.applicable_rules, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -91,6 +91,9 @@ def load_rule(rule_id: str, rules_dir: Path | None = None) -> RuleDefinition:
         cannot_conclude=data.get("cannot_conclude", []),
         limitations=data.get("limitations", []),
         notes=data.get("notes", []),
+        # Prefer the rule file's own flag; fall back to the index entry
+        # (index.json carries informational for every rule).
+        informational=data.get("informational", entry.get("informational", False)),
     )
 
 

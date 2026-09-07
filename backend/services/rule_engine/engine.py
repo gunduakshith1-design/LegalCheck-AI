@@ -81,6 +81,7 @@ class RuleEngine:
         rule_results = []
         for rule in self.rules:
             result = evaluate_rule(rule, fields)
+            result.informational = rule.informational
             rule_results.append(result)
 
         # Step 3: Compute aggregate status
@@ -125,7 +126,9 @@ class RuleEngine:
 
         fields = extract_fields(ocr_input)
         rule = self.rules_by_id[rule_id]
-        return evaluate_rule(rule, fields)
+        result = evaluate_rule(rule, fields)
+        result.informational = rule.informational
+        return result
 
     def _compute_aggregate_status(self, results: list[RuleResult]) -> AggregateStatus:
         """
@@ -142,12 +145,13 @@ class RuleEngine:
         not find a problem. It does NOT mean legal compliance.
         """
         statuses = [r.status for r in results]
-        informational_fields = {"consumer_care_email"}
 
-        # Filter out informational rules from scoring consideration
+        # Filter out informational rules from compliance-status consideration.
+        # The flag comes from the rule contract (rules/*.json) — the single
+        # source of truth; no rule IDs are hardcoded here.
         scoring_statuses = [
             r.status for r in results
-            if r.field not in informational_fields
+            if not r.informational
         ]
 
         # Check for NOT_DETECTED (potential non-compliance)

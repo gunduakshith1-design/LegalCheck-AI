@@ -777,5 +777,60 @@ class TestSplitRegionPairing(unittest.TestCase):
         self.assertEqual(by_id["MVP-A9"].status, RuleStatus.NOT_APPLICABLE)
 
 
+class TestInformationalFlag(unittest.TestCase):
+    """The informational flag flows from the rule contract through the rule
+    result and its serialized form; aggregate behavior for A10 is preserved."""
+
+    def setUp(self):
+        self.engine = RuleEngine(RULES_DIR)
+
+    def test_a10_result_has_informational_true(self):
+        ocr = _make_ocr([
+            ("Sugar", 0.90),
+            ("Email: customercare@example.in", 0.90),
+        ])
+        result = self.engine.evaluate_single("MVP-A10", ocr)
+        self.assertTrue(result.informational)
+
+    def test_normal_rules_have_informational_false(self):
+        ocr = _make_ocr([("MRP Rs. 299.00", 0.94)])
+        result = self.engine.evaluate_single("MVP-A3", ocr)
+        self.assertFalse(result.informational)
+
+    def test_serialized_rule_results_carry_flag(self):
+        report = self.engine.evaluate(_make_ocr([
+            ("Manufactured by Test Corp", 0.90),
+            ("Net Wt. 100g", 0.88),
+            ("MRP Rs. 99", 0.90),
+            ("Mfg: Jan 2024", 0.82),
+            ("Email: care@test.in", 0.90),
+        ]))
+        d = report.to_dict()
+        by_id = {r["rule_id"]: r for r in d["rule_results"]}
+        self.assertTrue(by_id["MVP-A10"]["informational"])
+        self.assertFalse(by_id["MVP-A3"]["informational"])
+        self.assertFalse(by_id["MVP-A1"]["informational"])
+
+    def test_a10_not_detected_does_not_trigger_non_compliance(self):
+        # Aggregate-status behavior preserved: a complete product whose only
+        # gap is the informational email must NOT be POTENTIAL_NON_COMPLIANCE.
+        report = self.engine.evaluate(_make_ocr([
+            ("Manufactured by Test Corp", 0.90),
+            ("Net Wt. 100g", 0.88),
+            ("MRP Rs. 99", 0.90),
+            ("Mfg: Jan 2024", 0.82),
+            ("Consumer Care: 1800-123-4567", 0.90),
+            ("Mumbai 400001", 0.90),
+            ("Tea Bags", 0.90),
+            ("Best Before: Dec 2025", 0.85),
+        ]))
+        a10 = next(r for r in report.rule_results if r.rule_id == "MVP-A10")
+        self.assertEqual(a10.status, RuleStatus.NOT_DETECTED)
+        self.assertTrue(a10.informational)
+        self.assertNotEqual(
+            report.aggregate_status, AggregateStatus.POTENTIAL_NON_COMPLIANCE
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

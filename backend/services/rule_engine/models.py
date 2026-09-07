@@ -159,6 +159,10 @@ class RuleDefinition:
     cannot_conclude: list[str]
     limitations: list[str]
     notes: list[str]
+    # True for informational rules (e.g. MVP-A10): evaluated and reported but
+    # excluded from the screening score per the rule contract. Loaded from the
+    # rule JSON — single source of truth.
+    informational: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +186,9 @@ class RuleResult:
     explanation: str
     cannot_conclude: list[str]
     limitations: list[str]
+    # Copied from the rule definition at evaluation time so downstream
+    # scoring/exclusion logic never needs to hardcode rule IDs.
+    informational: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -197,6 +204,7 @@ class RuleResult:
             "explanation": self.explanation,
             "cannot_conclude": self.cannot_conclude,
             "limitations": self.limitations,
+            "informational": self.informational,
         }
 
 

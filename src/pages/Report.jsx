@@ -58,10 +58,12 @@ export default function Report() {
         screening_score: scan.screeningScore,
         threshold: 70,
         threshold_status: scan.screeningScore >= 70 ? 'MET' : 'BELOW_THRESHOLD',
-        applicable_rules: scan.ruleResults?.length || 0,
-        detected_rules: scan.ruleResults?.filter((r) => r.status === 'DETECTED').length || 0,
-        uncertain_rules: scan.ruleResults?.filter((r) => r.status === 'UNCERTAIN').length || 0,
-        not_detected_rules: scan.ruleResults?.filter((r) => r.status === 'NOT_DETECTED').length || 0,
+        // Informational rules (flag from the rule contract, absent on old
+        // persisted rows) are excluded from the breakdown to match the score.
+        applicable_rules: scan.ruleResults?.filter((r) => !r.informational).length || 0,
+        detected_rules: scan.ruleResults?.filter((r) => r.status === 'DETECTED' && !r.informational).length || 0,
+        uncertain_rules: scan.ruleResults?.filter((r) => r.status === 'UNCERTAIN' && !r.informational).length || 0,
+        not_detected_rules: scan.ruleResults?.filter((r) => r.status === 'NOT_DETECTED' && !r.informational).length || 0,
         not_applicable_rules: scan.ruleResults?.filter((r) => r.status === 'NOT_APPLICABLE').length || 0,
       }
     : null
