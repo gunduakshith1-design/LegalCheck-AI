@@ -152,6 +152,7 @@ def _convert_ocr_to_input(ocr_result: dict) -> OCRInput:
             text=r["text"],
             confidence=r["confidence"],
             bbox=r["bbox"],
+            source=r.get("source"),
         )
         for r in ocr_result["text_regions"]
     ]
@@ -321,7 +322,7 @@ def analyze_images(
         ocr_input = OCRInput(
             raw_text=combined_raw_text,
             text_regions=[
-                TextRegion(text=r["text"], confidence=r["confidence"], bbox=r["bbox"])
+                TextRegion(text=r["text"], confidence=r["confidence"], bbox=r["bbox"], source=r.get("source"))
                 for r in all_text_regions
             ],
             average_confidence=avg_confidence,

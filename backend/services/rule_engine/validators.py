@@ -34,11 +34,146 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
+
+def _find_mrp_value_near(keyword_regions, all_regions):
+    """Find a plausible MRP value region near an MRP keyword region.
+
+    Real labels frequently render the MRP declaration as a table: the keyword
+    ("MRP", "MRP/USP", "Max. Retail Price") sits in one OCR region and the
+    amount ("180.00[₹0.54/g]", with ₹ often misread as "R") in the region
+    directly below it. This pairs each keyword region with the NEAREST other
+    region that contains a strict price shape.
+
+    A candidate must be either currency-marked (₹/Rs/INR, tolerating an
+    OCR-corrupted "R" for ₹) or an explicit 2-decimal amount (e.g. 180.00).
+    Candidates that are unit prices ("0.54/g"), weights ("336g"), bare
+    integers ("21"), times/codes ("GB221:30"), or date fragments are
+    rejected, so ordinary weights/dates/unit prices never become MRP.
+
+    Returns (value_str, keyword_region, value_region) or None.
+    """
+    if not keyword_regions:
+        return None
+
+    candidate_re = re.compile(
+        r"(?<![\d.])(₹|Rs\.?|INR|[Rr])?\s*(\d{1,5}(?:\.\d{1,2})?)(?![\d.])",
+        re.IGNORECASE,
+    )
+
+    def candidates_in(text: str):
+        """Yield accepted price-shaped numbers from one region's text."""
+        for m in candidate_re.finditer(text):
+            prefix, number = m.group(1), m.group(2)
+            after = text[m.end():m.end() + 2]
+            # Unit prices ("0.54/g") and times/lot codes ("221:30")
+            if after.startswith("/") or after.startswith(":"):
+                continue
+            # Weights/volumes attached to the number ("1.5g", "250ml")
+            if re.match(r"\s*[gG]\b|[kK][gG]\b|[mM][lL]\b", after):
+                continue
+            # Must look like money: currency marker (incl. corrupted R for ₹)
+            # or an explicit 2-decimal amount ("180.00"). Bare integers and
+            # single-decimal numbers without a marker are not accepted.
+            has_currency = prefix is not None
+            has_cents = number.startswith("0.") or re.search(r"\.\d{2}$", number) is not None
+            if not (has_currency or has_cents):
+                continue
+            yield number
+
+    threshold = _pairing_threshold(all_regions)
+    best = None  # (distance, value, kw_region, value_region)
+    for kw in keyword_regions:
+        for region in all_regions:
+            if region is kw:
+                continue
+            if not _same_panel(kw, region):
+                continue
+            dist = _region_distance(kw, region)
+            if dist > threshold:
+                continue
+            for value in candidates_in(region.text or ""):
+                if best is None or dist < best[0]:
+                    best = (dist, value, kw, region)
+                    break  # one candidate per region is enough
+    if best is None:
+        return None
+    _, value, kw_region, value_region = best
+    return value, kw_region, value_region
+
+
 # Sentinel values that indicate partial/uncertain detection
 _SENTINEL_VALUES = {"MRP_KEYWORD_FOUND_NO_VALUE", "KEYWORD_FOUND_NO_DATE"}
 
 # Sentinel values that indicate NOT_APPLICABLE (conditional rules)
 _NOT_APPLICABLE_SENTINELS = {"DOMESTIC_NO_IMPORT_INDICATORS", "NON_PERISHABLE_NOT_APPLICABLE"}
+
+# ---------------------------------------------------------------------------
+# Shared date/value shape helpers (used by cross-region pairing)
+# ---------------------------------------------------------------------------
+
+# Dot-separated date shapes (common on Indian retail labels, e.g. "21.07.26",
+# "01.07.2026", "07.2026"). Day/month ranges are sanity-checked to reduce
+# false positives on prices and codes.
+_DOT_DMY_PATTERN = r"(?<![\d.])(3[01]|[12]\d|0?[1-9])\.(1[0-2]|0?[1-9])\.(\d{2}|\d{4})(?![\d.])"
+_DOT_MM_YYYY_PATTERN = r"(?<![\d.])(1[0-2]|0?[1-9])\.(20\d{2})(?![\d.])"
+
+# Date-like shapes accepted for best-before cross-region pairing. Mirrors the
+# formats extract_date_of_manufacture accepts, plus shelf-life spans.
+_DATE_LIKE_PATTERNS = [
+    r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s*\d{4}\b",
+    r"\b(January|February|March|April|May|June|July|August|September|October|November|December)\s*\d{4}\b",
+    r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",
+    r"\b\d{1,2}[/-]\d{4}\b",
+    r"\b\d{1,2}\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s*,?\s*\d{4}\b",
+    _DOT_DMY_PATTERN,
+    _DOT_MM_YYYY_PATTERN,
+    r"\b\d{1,3}\s*(?:months?|days?|years?)\b",
+]
+_DATE_LIKE_RES = [re.compile(p, re.IGNORECASE) for p in _DATE_LIKE_PATTERNS]
+
+
+def _region_center(bbox: list[list[float]]) -> tuple[float, float] | None:
+    """Center point of a 4-point OCR bbox, or None if the bbox is unusable."""
+    if not bbox or len(bbox) < 4:
+        return None
+    try:
+        xs = [float(p[0]) for p in bbox[:4]]
+        ys = [float(p[1]) for p in bbox[:4]]
+    except (TypeError, ValueError, IndexError):
+        return None
+    return (sum(xs) / 4.0, sum(ys) / 4.0)
+
+
+def _region_distance(a, b) -> float:
+    """Euclidean distance between two TextRegion bbox centers (inf if unusable)."""
+    ca, cb = _region_center(a.bbox), _region_center(b.bbox)
+    if ca is None or cb is None:
+        return float("inf")
+    return ((ca[0] - cb[0]) ** 2 + (ca[1] - cb[1]) ** 2) ** 0.5
+
+
+def _pairing_threshold(regions) -> float:
+    """Max pairing distance, derived from the spread of the OCR regions:
+    75% of the larger axis span of all bbox centers. Keeps pairing local to
+    one label panel without hard-coding pixel sizes."""
+    xs, ys = [], []
+    for r in regions:
+        center = _region_center(r.bbox)
+        if center:
+            xs.append(center[0])
+            ys.append(center[1])
+    if not xs:
+        return 250.0
+    span = max(max(xs) - min(xs), max(ys) - min(ys), 100.0)
+    return 0.75 * span
+
+
+def _same_panel(a, b) -> bool:
+    """True when both regions are known to come from the same image panel.
+    Regions without source info (single-image path, tests) are never blocked."""
+    if a.source is None or b.source is None:
+        return True
+    return a.source == b.source
 
 
 # ===========================================================================
@@ -250,6 +385,29 @@ def extract_mrp(ocr: OCRInput) -> ExtractedField:
                 value_found = m.group(0).strip()
                 evidence.append(text)
 
+    # Cross-region pairing: real labels often render "MRP/USP" as a table
+    # header with the value in a separate OCR region directly below it, and
+    # the ₹ symbol is frequently misread (e.g. as "R"). Accept a nearby
+    # region only when it contains a strict price shape (currency marker or
+    # 2-decimal amount) and is not a weight, unit price, date, or code.
+    if mrp_found and value_found is None:
+        keyword_regions = [
+            r for r in ocr.text_regions
+            if any(re.search(p, r.text or "", re.IGNORECASE) for p in mrp_keywords)
+        ]
+        paired = _find_mrp_value_near(keyword_regions, ocr.text_regions)
+        if paired is not None:
+            value_found, kw_region, value_region = paired
+            evidence.append(value_region.text)
+            confidence = min(kw_region.confidence, value_region.confidence)
+            return ExtractedField(
+                field_name=field_name,
+                value=value_found,
+                confidence=confidence,
+                evidence=evidence,
+                raw_matches=[value_found],
+            )
+
     if mrp_found and value_found:
         confidence = min(
             (r.confidence for r in ocr.text_regions if r.text.strip() in evidence),
@@ -288,6 +446,8 @@ def extract_date_of_manufacture(ocr: OCRInput) -> ExtractedField:
         r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",
         r"\b\d{1,2}[/-]\d{4}\b",  # MM/YYYY format
         r"\b\d{1,2}\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s*,?\s*\d{4}\b",
+        _DOT_DMY_PATTERN,      # DD.MM.YY(YY) — common on Indian retail labels
+        _DOT_MM_YYYY_PATTERN,  # MM.YYYY
     ]
     keyword_patterns = [
         r"\b(Mfg\.?|Mfd\.?|Manufactured|Manufacturing|Date|POD|Production\s*Date|Packing\s*Date|Batch|Lot)\b"
@@ -673,6 +833,18 @@ def extract_best_before_date(ocr: OCRInput) -> ExtractedField:
         r"\b(\d+)\s*(months?|days?|years?)\s*(shelf\s*life|from\s+(?:manufacture|packing|production))\b",
     ]
 
+    # Keyword-only shapes for cross-region pairing: the expiry keyword may sit
+    # in a separate OCR region from the date itself (e.g. a "MFG/EXPDate"
+    # table header above the dates). "EXP"/"EXPDate" covers the common
+    # abbreviated expiry header; full words are already covered above.
+    bb_keyword_patterns = [
+        r"\b(best\s*before|BBE|best\s*before\s*end)\b",
+        r"\b(use\s*by|UB)\b",
+        r"\b(expiry|expires?|expiration)\b",
+        r"\bEXP(?:DATE|DT)?\b",
+    ]
+    bb_keyword_res = [re.compile(p, re.IGNORECASE) for p in bb_keyword_patterns]
+
     evidence = []
     has_perishable_indicator = False
     bb_found = False
@@ -726,6 +898,65 @@ def extract_best_before_date(ocr: OCRInput) -> ExtractedField:
             evidence=evidence,
             raw_matches=[bb_value],
         )
+
+    # Perishable indicator found, but the keyword and the date may be split
+    # across OCR regions (e.g. "MFG/EXPDate" header with "21.07.26/20.07.27"
+    # in the region below it). Pair keyword regions with the nearest
+    # date-like region on the same panel; a single region containing BOTH a
+    # keyword and a date also qualifies (covers "EXP: 20.07.27").
+    keyword_regions = []
+    date_regions = []
+    same_region_pair = None
+    for region in ocr.text_regions:
+        text = region.text.strip()
+        if not text:
+            continue
+        has_kw = any(res.search(text) for res in bb_keyword_res)
+        has_date = any(res.search(text) for res in _DATE_LIKE_RES)
+        if has_kw:
+            keyword_regions.append(region)
+            if has_date and same_region_pair is None:
+                same_region_pair = (region, region)
+        elif has_date:
+            date_regions.append(region)
+
+    paired = None
+    if same_region_pair is not None:
+        paired = (0.0, same_region_pair[0], same_region_pair[1])
+    elif keyword_regions and date_regions:
+        threshold = _pairing_threshold(ocr.text_regions)
+        best = None
+        for kw in keyword_regions:
+            for dr in date_regions:
+                if not _same_panel(kw, dr):
+                    continue
+                dist = _region_distance(kw, dr)
+                if dist <= threshold and (best is None or dist < best[0]):
+                    best = (dist, kw, dr)
+        if best is not None:
+            paired = best
+
+    if paired is not None:
+        _, kw_region, date_region = paired
+        matches = []
+        for res in _DATE_LIKE_RES:
+            for m in res.finditer(date_region.text or ""):
+                found = m.group(0).strip()
+                if found and found not in matches:
+                    matches.append(found)
+        if matches:
+            value = " / ".join(matches)
+            confidence = min(kw_region.confidence, date_region.confidence)
+            return ExtractedField(
+                field_name=field_name,
+                value=value,
+                confidence=confidence,
+                evidence=[
+                    f"[best-before keyword] {kw_region.text}",
+                    f"[date] {date_region.text}",
+                ],
+                raw_matches=matches,
+            )
 
     # Perishable indicator found but no date
     return ExtractedField(

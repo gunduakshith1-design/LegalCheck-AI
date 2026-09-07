@@ -45,6 +45,11 @@ class TextRegion:
     text: str
     confidence: float
     bbox: list[list[float]]  # [[x1,y1],[x2,y2],[x3,y3],[x4,y4]]
+    # Image panel the region came from (e.g. "Front"/"Back"), when known.
+    # Cross-region pairing (MRP value, best-before date) only pairs regions
+    # from the same panel, because bboxes from different images share no
+    # coordinate space.
+    source: str | None = None
 
     def __post_init__(self):
         if not 0.0 <= self.confidence <= 1.0:

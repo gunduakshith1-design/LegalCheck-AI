@@ -46,6 +46,18 @@ def _make_ocr(text_lines: list[tuple[str, float]]) -> OCRInput:
     return OCRInput(raw_text=raw_text, text_regions=regions, average_confidence=avg_conf)
 
 
+def _make_sourced_ocr(items: list[tuple[str, float, list[list[float]], str | None]]) -> OCRInput:
+    """OCRInput with per-region bbox and panel source, for cross-region
+    pairing tests (regions: text, confidence, bbox, source)."""
+    regions = [
+        TextRegion(text=text, confidence=conf, bbox=bbox, source=src)
+        for text, conf, bbox, src in items
+    ]
+    raw_text = "\n".join(t for t, *_ in items)
+    avg_conf = sum(c for _, c, *_ in items) / len(items) if items else 0.0
+    return OCRInput(raw_text=raw_text, text_regions=regions, average_confidence=avg_conf)
+
+
 RULES_DIR = Path(__file__).resolve().parent.parent.parent / "rules"
 
 
@@ -579,6 +591,190 @@ class TestEdgeCases(unittest.TestCase):
         ])
         report = self.engine.evaluate(ocr)
         self.assertIsNotNone(report.aggregate_status)
+
+
+# ---------------------------------------------------------------------------
+# Test: Split-region pairing (golden cases from real deployed scan 60e6ef94)
+# ---------------------------------------------------------------------------
+# A real packaged-product back panel renders its declarations as a table:
+# the keyword ("MRP/USP", "MFG/EXPDate") sits in a header region and the
+# value ("180.00[R0.54/g]", "21.07.26/20.07.27") in the region below it.
+# Before the pairing fix these produced UNCERTAIN for MVP-A3/A4/A9.
+
+class TestSplitRegionPairing(unittest.TestCase):
+    """Cross-region keyword/value pairing for MVP-A3, MVP-A4, MVP-A9."""
+
+    def setUp(self):
+        self.engine = RuleEngine(RULES_DIR)
+
+    # Approximate geometry of the real back panel (three table columns with
+    # values below each header).
+    KW_BB = [[266, 150], [368, 150], [368, 170], [266, 170]]      # MFG/EXPDate header
+    DATE_BB = [[258, 316], [388, 316], [388, 336], [258, 336]]    # dates below it
+    MRP_BB = [[398, 150], [498, 150], [498, 170], [398, 170]]     # MRP/USP header
+    VALUE_BB = [[390, 300], [512, 300], [512, 324], [390, 324]]   # 180.00 below it
+    LOT_BB = [[530, 150], [610, 150], [610, 170], [530, 170]]     # Lot No. header
+    LOT_VAL_BB = [[540, 316], [614, 316], [614, 336], [540, 336]] # lot code below it
+
+    def _back_panel_ocr(self):
+        return _make_sourced_ocr([
+            ("MFG/EXPDate", 0.86, self.KW_BB, "Back"),
+            ("21.07.26/20.07.27", 0.88, self.DATE_BB, "Back"),
+            ("MRP/USP", 0.86, self.MRP_BB, "Back"),
+            ("180.00[R0.54/g]", 0.85, self.VALUE_BB, "Back"),
+            ("Lot No.", 0.80, self.LOT_BB, "Back"),
+            ("GB221:30", 0.83, self.LOT_VAL_BB, "Back"),
+        ])
+
+    # --- MVP-A3: MRP keyword/value split across regions ---
+
+    def test_a3_detected_split_regions_real_scan(self):
+        result = self.engine.evaluate_single("MVP-A3", self._back_panel_ocr())
+        self.assertEqual(result.status, RuleStatus.DETECTED)
+        self.assertIn("180.00", result.observed_value)
+
+    def test_a3_unit_price_not_mrp(self):
+        ocr = _make_sourced_ocr([
+            ("MRP/USP", 0.86, self.MRP_BB, "Back"),
+            ("R0.54/g", 0.85, self.VALUE_BB, "Back"),
+        ])
+        result = self.engine.evaluate_single("MVP-A3", ocr)
+        self.assertEqual(result.status, RuleStatus.UNCERTAIN)
+
+    def test_a3_weight_not_mrp(self):
+        ocr = _make_sourced_ocr([
+            ("MRP/USP", 0.86, self.MRP_BB, "Back"),
+            ("336g", 0.83, self.VALUE_BB, "Back"),
+        ])
+        result = self.engine.evaluate_single("MVP-A3", ocr)
+        self.assertEqual(result.status, RuleStatus.UNCERTAIN)
+
+    def test_a3_bare_integer_not_mrp(self):
+        ocr = _make_sourced_ocr([
+            ("MRP/USP", 0.86, self.MRP_BB, "Back"),
+            ("21", 0.66, self.VALUE_BB, "Back"),
+        ])
+        result = self.engine.evaluate_single("MVP-A3", ocr)
+        self.assertEqual(result.status, RuleStatus.UNCERTAIN)
+
+    def test_a3_lot_code_not_mrp(self):
+        result = self.engine.evaluate_single("MVP-A3", self._back_panel_ocr())
+        self.assertIsNotNone(result.observed_value)
+        self.assertNotIn("221", result.observed_value)
+        self.assertNotIn("30", result.observed_value.split("."))
+
+    def test_a3_no_keyword_no_pairing(self):
+        ocr = _make_sourced_ocr([
+            ("NET WEIGHT", 0.83, self.MRP_BB, "Back"),
+            ("336g", 0.83, self.VALUE_BB, "Back"),
+            ("180.00[R0.54/g]", 0.85, self.LOT_VAL_BB, "Back"),
+        ])
+        result = self.engine.evaluate_single("MVP-A3", ocr)
+        self.assertEqual(result.status, RuleStatus.NOT_DETECTED)
+
+    def test_a3_cross_panel_region_not_paired(self):
+        ocr = _make_sourced_ocr([
+            ("MRP/USP", 0.86, self.MRP_BB, "Back"),
+            # Only acceptable via the cross-region pass (no in-region
+            # currency marker), so this isolates the same-panel rule.
+            ("180.00[R0.54/g]", 0.85, self.VALUE_BB, "Front"),
+        ])
+        result = self.engine.evaluate_single("MVP-A3", ocr)
+        self.assertEqual(result.status, RuleStatus.UNCERTAIN)
+
+    def test_a3_in_region_still_detected(self):
+        ocr = _make_sourced_ocr([
+            ("MRP Rs. 299.00", 0.94, self.MRP_BB, "Back"),
+            ("180.00[R0.54/g]", 0.85, self.VALUE_BB, "Back"),
+        ])
+        result = self.engine.evaluate_single("MVP-A3", ocr)
+        self.assertEqual(result.status, RuleStatus.DETECTED)
+        self.assertIn("299", result.observed_value)
+
+    # --- MVP-A4: dot-separated DMY / MM.YYYY dates ---
+
+    def test_a4_detected_dot_dmy_real_scan(self):
+        result = self.engine.evaluate_single("MVP-A4", self._back_panel_ocr())
+        self.assertEqual(result.status, RuleStatus.DETECTED)
+        self.assertIn("21.07.26", result.observed_value)
+
+    def test_a4_detected_mm_yyyy_dot(self):
+        ocr = _make_ocr([("Batch: 07.2026", 0.85)])
+        result = self.engine.evaluate_single("MVP-A4", ocr)
+        self.assertEqual(result.status, RuleStatus.DETECTED)
+        self.assertIn("07.2026", result.observed_value)
+
+    def test_a4_price_region_not_a_date(self):
+        ocr = _make_ocr([("180.00[R0.54/g]", 0.85)])
+        result = self.engine.evaluate_single("MVP-A4", ocr)
+        self.assertEqual(result.status, RuleStatus.NOT_DETECTED)
+
+    def test_a4_slash_format_still_detected(self):
+        ocr = _make_ocr([("Mfg: 12/05/2026", 0.90)])
+        result = self.engine.evaluate_single("MVP-A4", ocr)
+        self.assertEqual(result.status, RuleStatus.DETECTED)
+
+    def test_a4_month_name_still_detected(self):
+        ocr = _make_ocr([("Mfg Date: March 2024", 0.88)])
+        result = self.engine.evaluate_single("MVP-A4", ocr)
+        self.assertEqual(result.status, RuleStatus.DETECTED)
+
+    # --- MVP-A9: EXP header + split date regions (applicability unchanged) ---
+
+    def test_a9_detected_exp_split_regions_real_scan(self):
+        ocr = _make_sourced_ocr([
+            ("Choco Pie", 0.90, [[40, 40], [200, 40], [200, 70], [40, 70]], "Back"),
+            ("Sugar", 0.90, [[40, 80], [120, 80], [120, 100], [40, 100]], "Back"),
+            ("MFG/EXPDate", 0.86, self.KW_BB, "Back"),
+            ("21.07.26/20.07.27", 0.88, self.DATE_BB, "Back"),
+        ])
+        result = self.engine.evaluate_single("MVP-A9", ocr)
+        self.assertEqual(result.status, RuleStatus.DETECTED)
+        self.assertIn("20.07.27", result.observed_value)
+
+    def test_a9_detected_exp_inline(self):
+        ocr = _make_ocr([
+            ("Sugar", 0.90),
+            ("EXP: 20.07.27", 0.88),
+        ])
+        result = self.engine.evaluate_single("MVP-A9", ocr)
+        self.assertEqual(result.status, RuleStatus.DETECTED)
+
+    def test_a9_non_perishable_still_not_applicable(self):
+        ocr = _make_ocr([
+            ("Stainless Steel Utensil", 0.90),
+            ("MFG/EXPDate", 0.86),
+            ("21.07.26/20.07.27", 0.88),
+        ])
+        result = self.engine.evaluate_single("MVP-A9", ocr)
+        self.assertEqual(result.status, RuleStatus.NOT_APPLICABLE)
+
+    def test_a9_perishable_without_any_date_still_uncertain(self):
+        ocr = _make_ocr([
+            ("Sugar", 0.90),
+            ("MFG/EXPDate", 0.86),
+            ("See pack for details", 0.80),
+        ])
+        result = self.engine.evaluate_single("MVP-A9", ocr)
+        self.assertEqual(result.status, RuleStatus.UNCERTAIN)
+
+    def test_a9_best_before_combined_still_detected(self):
+        ocr = _make_ocr([
+            ("Tea Bags", 0.90),
+            ("Best Before: 12 Months from Mfg", 0.88),
+        ])
+        result = self.engine.evaluate_single("MVP-A9", ocr)
+        self.assertEqual(result.status, RuleStatus.DETECTED)
+
+    # --- Full evaluation on the real back panel ---
+
+    def test_full_evaluation_real_back_panel(self):
+        report = self.engine.evaluate(self._back_panel_ocr())
+        by_id = {r.rule_id: r for r in report.rule_results}
+        self.assertEqual(by_id["MVP-A3"].status, RuleStatus.DETECTED)
+        self.assertEqual(by_id["MVP-A4"].status, RuleStatus.DETECTED)
+        # A9 needs a perishable indicator; the bare back panel has none
+        self.assertEqual(by_id["MVP-A9"].status, RuleStatus.NOT_APPLICABLE)
 
 
 if __name__ == "__main__":
