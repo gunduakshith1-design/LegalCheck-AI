@@ -234,7 +234,7 @@ export default function SellerOnboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50">
+    <div className="h-[100dvh] overflow-y-auto bg-neutral-50">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         {/* Logo */}
         <div className="text-center mb-6">
