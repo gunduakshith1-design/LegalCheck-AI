@@ -19,17 +19,70 @@ Output format:
 from __future__ import annotations
 
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any
 
 import cv2
 import numpy as np
+import onnxruntime as ort
 
 logger = logging.getLogger(__name__)
 
 # Lazy-loaded OCR instance
 _ocr_engine = None
+
+# ── P1 experiment: pin ONNX Runtime thread pools ──────────────────────────
+# Why this exists: rapidocr_onnxruntime 1.2.3 (the installed version) creates
+# ORT SessionOptions() in OrtInferSession and never sets thread counts, and
+# neither its config.yaml nor its constructor exposes intra/inter op thread
+# parameters (verified in the installed package source). On cgroup-limited
+# containers (e.g. Render free tier) ORT defaults to one intra-op thread per
+# host core, which oversubscribes the CPU quota and thrashes.
+#
+# Mechanism: rapidocr lazily does `from onnxruntime import SessionOptions`
+# at its import time, which happens inside _get_ocr_engine() below. Pinning
+# ort.SessionOptions BEFORE that first import makes every session rapidocr
+# constructs inherit intra_op=1 / inter_op=1 (documented, stable ORT API).
+#
+# Toggle: OCR_PIN_ORT_THREADS=0 disables pinning (used only for A/B
+# benchmarking); default is enabled. No other OCR behavior is changed.
+_ORT_PIN_INTRA_OP_THREADS = 1
+_ORT_PIN_INTER_OP_THREADS = 1
+_ort_pinning_applied = False
+
+
+def _install_ort_thread_pinning() -> None:
+    """Pin ORT SessionOptions thread defaults before rapidocr is imported."""
+    global _ort_pinning_applied
+    if _ort_pinning_applied:
+        return
+    if os.environ.get("OCR_PIN_ORT_THREADS", "1").strip().lower() in ("0", "false", "off"):
+        logger.info("[P1] OCR_PIN_ORT_THREADS=0 — ORT thread pinning DISABLED (ORT defaults in effect)")
+        _ort_pinning_applied = True
+        return
+
+    original_session_options = ort.SessionOptions
+
+    def _pinned_session_options() -> ort.SessionOptions:
+        options = original_session_options()
+        options.intra_op_num_threads = _ORT_PIN_INTRA_OP_THREADS
+        options.inter_op_num_threads = _ORT_PIN_INTER_OP_THREADS
+        return options
+
+    ort.SessionOptions = _pinned_session_options
+    _ort_pinning_applied = True
+    logger.info(
+        "[P1] ORT SessionOptions pinned: intra_op_num_threads=%d, "
+        "inter_op_num_threads=%d (rapidocr 1.2.x has no constructor param; "
+        "pinning applied before rapidocr import)",
+        _ORT_PIN_INTRA_OP_THREADS,
+        _ORT_PIN_INTER_OP_THREADS,
+    )
+
+
+_install_ort_thread_pinning()
 
 # Cap the longest edge of an input image before preprocessing/OCR.
 # Very large phone photos (4032x3024 etc.) make denoise/CLAHE + ONNX
@@ -47,7 +100,13 @@ def _get_ocr_engine():
         try:
             from rapidocr_onnxruntime import RapidOCR
             _ocr_engine = RapidOCR()
-            logger.info("RapidOCR engine initialized successfully")
+            pinned = os.environ.get("OCR_PIN_ORT_THREADS", "1").strip().lower() not in ("0", "false", "off")
+            logger.info(
+                "RapidOCR engine initialized successfully "
+                "(intra_op_num_threads=%s, inter_op_num_threads=%s)",
+                str(_ORT_PIN_INTRA_OP_THREADS) if pinned else "ort-default",
+                str(_ORT_PIN_INTER_OP_THREADS) if pinned else "ort-default",
+            )
         except ImportError as e:
             logger.error(f"RapidOCR not available: {e}")
             raise RuntimeError(f"No OCR engine available: {e}")
