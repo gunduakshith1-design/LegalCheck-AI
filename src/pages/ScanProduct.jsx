@@ -4,6 +4,7 @@ import { AlertTriangle, FileText, CheckCircle, Camera, X, RefreshCw, Eye } from 
 import ScreeningScoreCard from '../components/ScreeningScoreCard'
 import ScanProcessingPanel from '../components/ScanProcessingPanel'
 import FadeContent from '../components/FadeContent'
+import ErrorBoundary from '../components/ErrorBoundary'
 import { useAuth } from '../contexts/AuthContext'
 import { persistScan } from '../lib/scanService'
 import {
@@ -435,6 +436,7 @@ export default function ScanProduct({ scanStore }) {
 
       {/* Scan Results View */}
       {scanResult && (
+        <ErrorBoundary onReset={clearAll}>
         <FadeContent blur duration={300}>
         <div className="space-y-6">
 
@@ -748,6 +750,7 @@ export default function ScanProduct({ scanStore }) {
           )}
         </div>
         </FadeContent>
+        </ErrorBoundary>
       )}
 
       {/* Upload View */}

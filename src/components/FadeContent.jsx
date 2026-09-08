@@ -6,6 +6,14 @@ import './FadeContent.css';
  *
  * Uses CSS animations + IntersectionObserver (no GSAP dependency).
  * Respects prefers-reduced-motion.
+ *
+ * Mobile-safe mode: on coarse-pointer (touch) devices the entrance animation
+ * is degraded to an opacity-only transition (no blur filter, no transform,
+ * no will-change). Animating `filter: blur()` over a large subtree that
+ * contains decoded images forces huge GPU layer promotion and has been
+ * implicated in mobile compositor crashes (real-device white screen after
+ * scan results arrive, while emulation passes). Desktop presentation is
+ * unchanged.
  */
 export default function FadeContent({
   children,
@@ -18,6 +26,17 @@ export default function FadeContent({
   const ref = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
+
+  // Coarse-pointer (touch/mobile) devices get the lightweight path.
+  // Uses the same matchMedia pattern as prefers-reduced-motion — no UA sniffing.
+  const [coarsePointer, setCoarsePointer] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(pointer: coarse)');
+    setCoarsePointer(mq.matches);
+    const handler = (e) => setCoarsePointer(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   // Fallback: if IntersectionObserver never reports the block in view (some
   // mobile browsers, e.g. iOS Safari, fail to deliver intersection callbacks),
@@ -59,9 +78,17 @@ export default function FadeContent({
   }, [threshold, reducedMotion]);
 
   const visible = isVisible || fallbackVisible;
+  // Lightweight mode: reduced-motion OR coarse-pointer (touch/mobile).
+  const lightweight = reducedMotion || coarsePointer;
 
-  const style = reducedMotion
-    ? {}
+  const style = lightweight
+    ? // Mobile / reduced-motion: opacity-only reveal — no blur filter, no
+      // transform, no will-change (avoids large GPU layer promotion on the
+      // result subtree on mobile devices).
+      {
+        opacity: visible ? 1 : 0,
+        transition: `opacity ${duration}ms ease-out ${delay}ms`,
+      }
     : {
         opacity: visible ? 1 : 0,
         filter: blur ? (visible ? 'blur(0px)' : 'blur(8px)') : 'none',

@@ -2,6 +2,16 @@
   will-change: opacity, transform, filter;
 }
 
+/* Mobile-safe mode: on coarse-pointer (touch) devices FadeContent degrades to
+   opacity-only (set inline in FadeContent.jsx), so the GPU layer-promotion
+   hint must go too — animating blur/filter over a large image-bearing subtree
+   has been implicated in mobile compositor crashes. */
+@media (pointer: coarse) {
+  .fade-content {
+    will-change: auto;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .fade-content {
     opacity: 1 !important;
