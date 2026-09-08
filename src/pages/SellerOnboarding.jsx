@@ -113,7 +113,7 @@ function SelectField({ label, field, value, onChange, error, options, placeholde
 }
 
 export default function SellerOnboarding() {
-  const { user } = useAuth()
+  const { user, refreshSellerProfile } = useAuth()
   const navigate = useNavigate()
 
   const [step, setStep] = useState(0)
@@ -205,7 +205,8 @@ export default function SellerOnboarding() {
     try {
       const { error } = await upsertSellerProfile(user.id, values)
       if (error) throw new Error(error)
-      // Navigate to dashboard after saving
+      // Refresh auth context so SellerProfileGuard sees the saved profile, then navigate
+      await refreshSellerProfile()
       navigate('/', { replace: true })
     } catch (err) {
       setServerError(err.message)
