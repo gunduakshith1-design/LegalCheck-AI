@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { CheckCircle, Loader2, AlertCircle } from 'lucide-react'
+import { CheckCircle, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 
 /**
  * ScanProcessingPanel — shows honest processing stages during scan analysis.
