@@ -1,0 +1,47 @@
+-- Migration 014 — Supabase Storage bucket for persisted scan/product images
+--
+-- WHY: The Render backend previously wrote scan images to its instance-local
+-- filesystem (/opt/render/project/src/backend/uploads). Render's filesystem
+-- is ephemeral — files are destroyed on every deploy/restart and on free-tier
+-- idle spin-down — while Supabase keeps durable `/uploads/<uuid>.jpg`
+-- references in product_scans / products / order_items. Result: 404
+-- {"detail":"File not found"} for every persisted image.
+--
+-- FIX: store images durably in Supabase Storage. The backend (server-side,
+-- service-role credentials only) uploads bytes and returns a public Storage
+-- URL, which flows through the existing persistence columns unchanged
+-- (image_path / image_paths / image_path_snapshot TEXT — no schema change).
+--
+-- HOW TO APPLY (one-time, manual):
+--   Supabase Dashboard → Storage → New bucket:
+--     Name:            product-images
+--     Public bucket:   ON   (frontend renders plain <img src="URL"> without
+--                            authenticated Storage headers)
+--     File size limit: 10 MB (matches backend MAX_FILE_SIZE_BYTES)
+--     Allowed MIME types: image/png, image/jpeg, image/webp, image/bmp
+--
+-- Or run the SQL below in the SQL Editor (equivalent to the dashboard):
+--
+-- insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+-- values (
+--   'product-images',
+--   'product-images',
+--   true,
+--   10485760,  -- 10 MB
+--   array['image/png','image/jpeg','image/webp','image/bmp']
+-- )
+-- on conflict (id) do update
+--   set public = true,
+--       file_size_limit = excluded.file_size_limit,
+--       allowed_mime_types = excluded.allowed_mime_types;
+--
+-- NOTE ON SECURITY MODEL:
+-- - Writes happen ONLY from the backend using SUPABASE_SERVICE_ROLE_KEY,
+--   which is a server-side secret (Render env var) and must never reach the
+--   React bundle (guarded by tests/test_security_hardening.py).
+-- - The bucket is world-readable (public) because scan/product images are
+--   rendered via ordinary <img> tags by any visitor, exactly like the old
+--   unauthenticated GET /uploads/<filename> endpoint it replaces. Object
+--   names are uuid4 hex (128-bit), so they are not enumerable.
+-- - No storage.* RLS policies are needed for the backend path (service role
+--   bypasses RLS). If you later add client-side writes, add policies first.

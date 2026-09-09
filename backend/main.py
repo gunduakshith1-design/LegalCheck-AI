@@ -27,10 +27,10 @@ from services.image_validator import (
     get_image_info,
     validate_image,
 )
-from services.ocr_engine import get_ocr_backend, initialize_ocr, get_engine_status, self_test as ocr_self_test
+from services.ocr_engine import get_ocr_backend, initialize_ocr, get_engine_status, self_test as ocr_self_test, run_ocr
 from services.ocr_service import ocr_from_bytes
 from services.scan_pipeline import analyze_image, analyze_images
-from services.upload_handler import save_upload
+from services.upload_handler import save_upload, response_url, StorageUploadError
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -101,6 +101,25 @@ def _check_rate_limit(client_ip: str, endpoint: str) -> bool:
 
     _rate_limits[key].append(now)
     return True
+
+def _save_upload_with_fallback(content: bytes, filename: str) -> dict:
+    """
+    Store an upload, translating StorageUploadError into an explicit HTTP
+    503 so the scan fails loudly and no dead image URL is ever persisted.
+    """
+    try:
+        return save_upload(content, filename)
+    except StorageUploadError as e:
+        logger.error(f"[uploads] Durable image storage failed: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "success": False,
+                "error": "Image storage is temporarily unavailable. Please retry shortly.",
+                "code": "STORAGE_UPLOAD_FAILED",
+            },
+        )
+
 
 # ---------------------------------------------------------------------------
 # Startup: initialize OCR engine
@@ -183,9 +202,9 @@ async def process_ocr(
     )
 
     # ------------------------------------------------------------------
-    # 3. Save to disk
+    # 3. Store image (durable Supabase Storage + local fallback)
     # ------------------------------------------------------------------
-    saved = save_upload(content, file.filename or "upload.png")
+    saved = _save_upload_with_fallback(content, file.filename or "upload.png")
 
     # ------------------------------------------------------------------
     # 4. Preprocess image
@@ -451,9 +470,9 @@ async def scan_product(
         image_info = {"width": 0, "height": 0, "format": "unknown"}
 
     # ------------------------------------------------------------------
-    # 3. Save to disk
+    # 3. Store image (durable Supabase Storage + local fallback)
     # ------------------------------------------------------------------
-    saved = save_upload(content, file.filename or "upload.png")
+    saved = _save_upload_with_fallback(content, file.filename or "upload.png")
     logger.info(f"[/api/scan] Saved to {saved['filename']}")
 
     # ------------------------------------------------------------------
@@ -485,7 +504,7 @@ async def scan_product(
         "saved_filename": saved["filename"],
         "original_filename": saved["original_filename"],
         "size_bytes": saved["size_bytes"],
-        "url": f"/uploads/{saved['filename']}",
+        "url": response_url(saved),
     }
 
     logger.info(
@@ -558,10 +577,10 @@ async def scan_product_multi(
             detail={"success": False, "error": "No valid images provided", "code": "NO_IMAGES"},
         )
 
-    # Save all uploads
+    # Store all uploads (durable Supabase Storage + local fallback)
     saved_files = []
     for img in image_list:
-        saved = save_upload(img["bytes"], img["filename"])
+        saved = _save_upload_with_fallback(img["bytes"], img["filename"])
         saved_files.append(saved)
 
     # Run multi-image analysis pipeline
@@ -585,7 +604,7 @@ async def scan_product_multi(
             "saved_filename": sf["filename"],
             "original_filename": sf["original_filename"],
             "size_bytes": sf["size_bytes"],
-            "url": f"/uploads/{sf['filename']}",
+            "url": response_url(sf),
             "label": img["label"],
         }
         for sf, img in zip(saved_files, image_list)
